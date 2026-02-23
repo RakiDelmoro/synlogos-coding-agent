@@ -394,8 +394,8 @@ async def run_async():
                 current_tokens["prompt"] = prompt
                 current_tokens["completion"] = completion
                 current_tokens["total"] = total
-                # Calculate cost: $0.50 per 1M input, $1.50 per 1M output (TogetherAI rates)
-                current_cost = (prompt / 1000000) * 0.5 + (completion / 1000000) * 1.5
+                # Calculate cost: $0.50 per 1K input, $1.50 per 1K output (TogetherAI Kimi-K2.5 rates)
+                current_cost = (prompt / 1000) * 0.5 + (completion / 1000) * 1.5
             
             while True:
                 try:
