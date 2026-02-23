@@ -2,7 +2,7 @@
 import asyncio
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable
 from returns.result import Result, Success, Failure
 
@@ -30,12 +30,13 @@ from src.providers.unified_provider import (
 )
 
 
-@dataclass(frozen=True)
+@dataclass
 class SynlogosState:
     config: AgentConfig
     agent_type: str | None
     sandbox: LocalSandbox | None = None
     provider_state: UnifiedProviderState | None = None
+    messages: list[dict] = field(default_factory=list)  # Conversation history
 
 
 def create_synlogos(
@@ -129,7 +130,7 @@ async def run_synlogos(
     on_response: Callable[[str], None] | None = None,
     on_token_update: Callable[[int, int, int], None] | None = None
 ) -> Result[str, str]:
-    """Run a prompt through the agent"""
+    """Run a prompt through the agent with conversation history"""
     if not state.provider_state:
         return Failure("Agent not started - call start() first")
     
@@ -141,15 +142,26 @@ async def run_synlogos(
         if state.agent_type and state.agent_type in config.agent_types:
             custom_instructions = config.agent_types[state.agent_type].instructions
     
-    return await run_with_prompt(
+    # Run with conversation history
+    result = await run_with_prompt(
         state=state.provider_state,
         prompt=prompt,
         custom_instructions=custom_instructions,
         max_turns=state.config.max_turns,
         on_tool_call=on_tool_call,
         on_response=on_response,
-        on_token_update=on_token_update
+        on_token_update=on_token_update,
+        existing_messages=state.messages if state.messages else None
     )
+    
+    # Update conversation history
+    if isinstance(result, Success):
+        response_text, updated_messages = result.unwrap()
+        state.messages.clear()
+        state.messages.extend(updated_messages)
+        return Success(response_text)
+    else:
+        return result
 
 
 class Synlogos:

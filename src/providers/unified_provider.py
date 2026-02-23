@@ -432,8 +432,26 @@ async def run_with_prompt(
     max_turns: int = 20,
     on_tool_call: Callable[[str, dict], None] | None = None,
     on_response: Callable[[str], None] | None = None,
-    on_token_update: Callable[[int, int, int], None] | None = None
-) -> Result[str, str]:
-    """Main entry point for running with a prompt"""
-    messages = build_messages(prompt, custom_instructions)
-    return await run_agent_loop(state, messages, max_turns, on_tool_call, on_response, on_token_update)
+    on_token_update: Callable[[int, int, int], None] | None = None,
+    existing_messages: list[dict[str, Any]] | None = None
+) -> Result[tuple[str, list[dict[str, Any]]], str]:
+    """Main entry point for running with a prompt
+    
+    Returns:
+        Success with (response_text, updated_messages) to maintain conversation history
+    """
+    if existing_messages:
+        # Continue existing conversation
+        messages = existing_messages.copy()
+        messages.append({"role": "user", "content": prompt})
+    else:
+        # Start fresh conversation
+        messages = build_messages(prompt, custom_instructions)
+    
+    result = await run_agent_loop(state, messages, max_turns, on_tool_call, on_response, on_token_update)
+    
+    if isinstance(result, Success):
+        # Return both the response text and the updated messages for history
+        return Success((result.unwrap(), messages))
+    else:
+        return Failure(result.failure())
