@@ -157,10 +157,14 @@ When tools complete, you MUST provide the actual answer/data/results in your res
 ✅ GOOD (summarizes actual findings):
 "This project is Synlogos - a multi-provider AI coding agent with JSON configuration. It supports multiple LLM providers (opencode.ai, ollama, togetherai) and specialized agent types (explore, code, architect, etc.). The codebase is built with Python using functional programming patterns."
 
+✅ GOOD (when code has errors - explain what happened):
+"I encountered an error while trying to explore the project: 'chr' is not defined. This appears to be a sandbox restriction. Let me try a different approach to analyze the project structure."
+
 ❌ BAD (just confirms tools ran):
 "Task completed via orchestrate."
 "The search has been performed."
 "Files have been found."
+"Done."
 
 CRITICAL RULES:
 1. After tool execution, ALWAYS read the results and include them in your response
@@ -168,7 +172,15 @@ CRITICAL RULES:
 3. If you searched → describe what you found
 4. If you read files → summarize the content
 5. If you explored → explain what you discovered
-6. Your FINAL RESPONSE is what the user sees - make it useful!
+6. If there was an ERROR → explain what went wrong and what you tried
+7. Your FINAL RESPONSE is what the user sees - make it useful!
+8. If the code output shows an error, DO NOT ignore it - explain it to the user
+
+ERROR HANDLING:
+- If you see "Error:" in the output → explain the error to the user
+- If code fails → explain what you were trying to do and why it failed
+- Never pretend success when there was an error
+- Be honest about what happened and what the results actually are
 
 Always think through problems step by step."""
 
@@ -430,7 +442,7 @@ async def run_agent_loop(
         if orchestrate_called and turn == 0:
             messages.append({
                 "role": "system",
-                "content": "STOP. The orchestrate tool has been executed. DO NOT call any more tools. CRITICAL: Your next response MUST include the actual results/content discovered by the tools - NEVER just say 'Task completed' or 'Done'. Analyze the tool results and provide a complete answer to the user's question."
+                "content": "STOP. The orchestrate tool has been executed. DO NOT call any more tools. CRITICAL: Your next response MUST include the actual results/content discovered by the tools - NEVER just say 'Task completed' or 'Done'. Check the tool output messages for actual results. If there was an error, explain what went wrong. If there was output, describe what was found. Analyze the tool results and provide a complete answer to the user's question."
             })
     
     return Success("Max turns reached without completion.")
