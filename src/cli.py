@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import os
 import sys
+import time
 from pathlib import Path
 from rich.console import Console
 from rich.panel import Panel
@@ -15,6 +16,10 @@ from returns.result import Success, Failure
 from src.config import get_cached_config, list_agent_types, get_agent_info
 from src.agent.synlogos import Synlogos
 from src.types import AgentConfig
+from src.metrics import (
+    reset_session_metrics, record_tool_execution, record_user_prompt,
+    print_session_summary, get_session_metrics
+)
 
 
 console = Console()
@@ -87,6 +92,7 @@ def show_slash_commands():
         ("/providers", "List all configured providers"),
         ("/clear", "Clear the screen"),
         ("/tokens", "Show current token usage"),
+        ("/metrics", "Show session tool usage metrics"),
         ("/config", "Show current configuration"),
         ("/exit", "Exit the session"),
     ]
@@ -140,6 +146,15 @@ async def process_slash_command(cmd: str, args: list[str], agent) -> tuple[bool,
             show_token_usage(agent.token_usage)
         else:
             console.print("[dim]No token usage yet.[/]")
+        return True, False
+    
+    elif cmd == "/metrics":
+        console.print()
+        console.print(Panel(
+            Markdown(get_session_metrics().get_summary()),
+            title="[bold green]📊 Session Metrics[/bold green]",
+            border_style="green"
+        ))
         return True, False
     
     elif cmd == "/provider":
@@ -287,7 +302,7 @@ Examples:
     return parser.parse_args()
 
 
-async def run():
+async def run_async():
     """Main run loop"""
     args = parse_args()
     
@@ -340,6 +355,9 @@ async def run():
     )
     
     try:
+        # Reset metrics at start of session
+        reset_session_metrics()
+        
         async with Synlogos(
             config=agent_config,
             agent_type=agent_type
@@ -381,6 +399,9 @@ async def run():
                     
                     prompt = Prompt.ask("[bold blue]You[/bold blue]")
                     
+                    # Record user prompt in metrics
+                    record_user_prompt()
+                    
                     # Handle slash commands
                     if prompt.startswith("/"):
                         parts = prompt.split(maxsplit=1)
@@ -392,6 +413,13 @@ async def run():
                             if agent.token_usage:
                                 console.print()
                                 show_token_usage(agent.token_usage)
+                            # Show session metrics
+                            console.print()
+                            console.print(Panel(
+                                Markdown(get_session_metrics().get_summary()),
+                                title="[bold green]📊 Session Metrics[/bold green]",
+                                border_style="green"
+                            ))
                             console.print("\n[yellow]Goodbye![/]")
                             break
                         if handled:
@@ -417,6 +445,9 @@ async def run():
                     def on_tool_call(name: str, args: dict):
                         nonlocal tool_count, has_shown_reasoning
                         tool_count += 1
+                        
+                        # Record metrics for tool call
+                        record_tool_execution(name, success=True)
                         
                         # If we haven't shown reasoning yet, show it now before tools
                         if not has_shown_reasoning and last_response_text:
@@ -526,10 +557,15 @@ async def run():
         sys.exit(1)
 
 
-if __name__ == "__main__":
+def run():
+    """Entry point for synlogos CLI - wraps the async run function"""
     try:
-        exit_code = asyncio.run(run())
+        exit_code = asyncio.run(run_async())
         sys.exit(exit_code or 0)
     except KeyboardInterrupt:
         console.print("\n[yellow]Goodbye![/]")
         sys.exit(0)
+
+
+if __name__ == "__main__":
+    run()

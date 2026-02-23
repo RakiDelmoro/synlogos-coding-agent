@@ -36,87 +36,37 @@ class UnifiedProviderState:
 
 
 # System prompt (same for all providers)
-SYSTEM_PROMPT_TEMPLATE = """You are an AI coding agent that uses programmatic tool calling for all tasks.
+SYSTEM_PROMPT_TEMPLATE = """You are an AI coding agent. Choose the simplest tool for each task.
 
 Working directory: {cwd}
 
 {custom_instructions}
 
-THINKING VISIBILITY - SHOW YOUR REASONING:
-Before using any tools, ALWAYS explain your thinking process. This helps users understand your approach.
+TOOL SELECTION - KEEP IT SIMPLE:
 
-For complex tasks, structure your response as:
-1. **Understanding**: What does the user want?
-2. **Approach**: How will you accomplish this?
-3. **Execution**: Call the appropriate tool
+**DIRECT TOOLS** (Use for single operations):
+- read_file(path): Read one file
+- write_file(path, content): Write/create files
+- edit_file(path, old, new): Edit files
+- shell(command): Run shell commands
+- execute_code(code): Execute Python/JS temporarily
+- glob(pattern): Find files
+- grep(pattern): Search content
+- git_status(), git_commit(msg): Git operations
 
-Example:
-User: "Find all Python files and check for syntax errors"
+**ORCHESTRATE** (Use for multiple operations):
+- When you need to: read multiple files, batch operations, parallel execution
+- Write Python code that uses await on tools
+- Example: orchestrate(code="files = await glob('*.py'); results = await asyncio.gather(*[read_file(f) for f in files])")
 
-Your response:
-"I'll help you find Python files and check for syntax errors. Let me break this down:
-- First, I'll search for all .py files in the workspace
-- Then I'll use Python's compileall module to check syntax
-- Finally, I'll report any errors found"
-[Then call orchestrate with the code]
-
-PRIMARY WORKFLOW:
-You have ONE tool: `orchestrate`. Use it when the user asks you to DO something (write files, edit code, search, run commands, etc.).
-
-WHEN TO USE ORCHESTRATE:
-- User asks to "write/create/save a file" → use orchestrate with write_file()
-- User asks to "edit/modify/update code" → use orchestrate with edit_file()
-- User asks to "search/find/read files" → use orchestrate with grep/glob/read_file
-- User asks to "run/execute/test code" → use orchestrate with shell() or execute_code()
-- Complex multi-step tasks → use orchestrate to batch operations
-
-WHEN NOT TO USE ORCHESTRATE:
-- Simple questions ("What is 2+2?", "Is 11 prime?") → Just answer directly, NO tool call
-- Explanations or advice → Just answer directly, NO tool call
-- Already completed the task → Just answer directly, NO tool call
-
-HOW ORCHESTRATE WORKS:
-- You write Python code that runs INSIDE an async environment
-- Use `await` directly (NO need for asyncio.run() or async def main())
-- Call tools like: `result = await read_file("path")`
-- Return results via print() or by setting a `result` variable
-- The code runs immediately when you call orchestrate
-
-CODE FORMATTING FOR JSON - CRITICAL:
-The orchestrate tool expects valid JSON with the code as a STRING VALUE. When writing multi-line code:
-- The CODE PARAMETER IS A STRING - all code must be on one line with \n for newlines
-- Example: code="await write_file('/workspaces/synlogos/hello.txt','Hello')"
-- For multi-line strings: content = "line1\nline2\nline3"  
-- WRONG: code="line1
-line2"  (actual newline breaks JSON)
-- CORRECT: code="line1\nline2"  (escaped newline in string)
-- NEVER use triple quotes in the code parameter
-
-TOOL AVAILABILITY (accessible via orchestrate code):
-- await read_file(path, offset=1, limit=2000): Read files
-- await write_file(path, content): Write/create files  
-- await edit_file(path, old_string, new_string, replace_all=False): Edit files
-- await shell(command, timeout=120, workdir=None): Run shell commands
-- await execute_code(code, language="python", timeout=30): Execute code
-- await glob(pattern, path=None): Search files by pattern
-- await grep(pattern, path, include=None): Search file contents
-- await git_status(), git_diff(), git_log(), git_commit(message): Git operations
-
-IMPORTANT RULES:
-1. DO NOT use import asyncio or asyncio.run() - the code already runs async
-2. DO NOT define async def main() - just write code that uses await directly
-3. Use await when calling tools
-4. Check result.error before using result.output
-5. Return results via print() or result variable
-6. WHEN USER SAYS "write/create/save a file" → use write_file() to save to disk
-7. WHEN USER SAYS "run/test/execute code" → use execute_code() for temporary execution
-8. NEVER use execute_code when user asks to "create a file" or "write a module"
-
-CRITICAL - ALWAYS PRINT OR CAPTURE RESULTS:
-When you call a tool, you MUST either:
-- Print the result: `print((await write_file("path", "content")).output)`
-- Or assign and print: `result = await write_file("path", "content")` then `print(result.output)`
-- Or return via result variable: `result = await write_file("path", "content")`
+RULES:
+1. One simple task → Use DIRECT tool
+2. Multiple tasks/complex logic → Use ORCHESTRATE
+3. Questions only → Answer directly, NO tool
+4. In orchestrate: await all calls, check result.error, print results
+5. "Create file" → write_file() (saves to disk)
+6. "Run code" → execute_code() (temporary)
+7. Multi-line strings: Use triple quotes in content, not in code parameter
 
 EXACT TEMPLATE for writing a file:
 
@@ -276,44 +226,32 @@ import re
 
 def clean_tool_arguments(arguments_str: str) -> dict:
     """Clean and parse tool arguments, handling malformed JSON from LLM"""
+    # First, replace actual control characters that appear in strings
+    # This handles the case where LLM puts actual newlines in JSON strings
+    cleaned = arguments_str
+
+    # Replace actual newlines and carriage returns with escaped versions
+    # We need to be careful not to double-escape already-escaped ones
+    # Use a placeholder approach
+    cleaned = cleaned.replace('\\\\n', '\x00ESCAPED_N\x00')
+    cleaned = cleaned.replace('\\\\r', '\x00ESCAPED_R\x00')
+    cleaned = cleaned.replace('\n', '\\n')
+    cleaned = cleaned.replace('\r', '\\r')
+    cleaned = cleaned.replace('\x00ESCAPED_N\x00', '\\\\n')
+    cleaned = cleaned.replace('\x00ESCAPED_R\x00', '\\\\r')
+
+    # Now try to parse the JSON
     try:
-        # Try standard JSON parsing first
-        return json.loads(arguments_str)
-    except json.JSONDecodeError:
-        # If that fails, try to fix common issues
-        cleaned = arguments_str
-        
-        # Handle the specific case where LLM put actual newlines in a JSON string
-        # This happens with orchestrate code parameter
-        if '"code":' in cleaned or "'code':" in cleaned:
-            # Extract the code value between quotes
-            patterns = [
-                r'"code":\s*"(.*?)"(?=,|})',
-                r"'code':\s*'(.*?)'(?=,|})",
-                r'"code":\s*"(.*)"$',
-                r"'code':\s*'(.*)'$"
-            ]
-            
-            for pattern in patterns:
-                match = re.search(pattern, cleaned, re.DOTALL)
-                if match:
-                    code_content = match.group(1)
-                    # Replace actual newlines with escaped newlines in the content
-                    code_content_fixed = code_content.replace('\n', '\\n').replace('\r', '\\r')
-                    # Replace quotes inside the content
-                    code_content_fixed = code_content_fixed.replace('"', '\\"')
-                    # Reconstruct the JSON
-                    cleaned = cleaned[:match.start(1)] + code_content_fixed + cleaned[match.end(1):]
-                    break
-        
-        # General newline cleanup for other parameters
-        cleaned = cleaned.replace('\n', '\\n').replace('\r', '\\r')
-        
-        # Try parsing again
+        return json.loads(cleaned)
+    except json.JSONDecodeError as e:
+        # If still failing, try more aggressive cleaning
+        # Handle unescaped quotes within strings
+        # This is a last resort - try to fix common quote issues
         try:
-            return json.loads(cleaned)
-        except json.JSONDecodeError as e:
-            # If still failing, return error in result format
+            # Replace problematic control characters
+            cleaned2 = re.sub(r'[\x00-\x1f]', '', cleaned)  # Remove control chars
+            return json.loads(cleaned2)
+        except json.JSONDecodeError:
             return {"error": f"Failed to parse tool arguments: {e}", "raw": arguments_str[:200]}
 
 

@@ -67,21 +67,34 @@ async def start_synlogos(state: SynlogosState) -> Result[SynlogosState, str]:
     sandbox = LocalSandbox()
     await sandbox.start()
     
-    # Build internal tools (available to orchestration code)
+    # Build tools - both direct and orchestration
+    file_read = create_file_read_tool()
+    file_write = create_file_write_tool()
+    file_edit = create_file_edit_tool()
+    shell = create_shell_tool(sandbox)
+    code_exec = create_code_tool(sandbox)
+    glob_tool = create_glob_tool()
+    grep_tool = create_grep_tool()
+    git_tools = create_all_git_tools()
+
+    # Internal tools available to orchestration code
     internal_tools: tuple[FunctionalTool, ...] = (
-        create_file_read_tool(),
-        create_file_write_tool(),
-        create_file_edit_tool(),
-        create_shell_tool(sandbox),
-        create_code_tool(sandbox),
-        create_glob_tool(),
-        create_grep_tool(),
-        *create_all_git_tools(),
+        file_read, file_write, file_edit, shell, code_exec,
+        glob_tool, grep_tool, *git_tools
     )
-    
-    # Only expose orchestrate tool to LLM - all other tools accessed programmatically
+
+    # Expose both direct tools AND orchestrate tool to LLM
+    # This allows the LLM to choose: direct tool call vs programmatic orchestration
     tools: list[FunctionalTool] = [
-        create_orchestration_tool(internal_tools, on_tool_call=lambda name, args: None)
+        file_read,      # For simple file reading
+        file_write,     # For simple file writing
+        file_edit,      # For simple file editing
+        shell,          # For simple shell commands
+        code_exec,      # For executing code
+        glob_tool,      # For file searching
+        grep_tool,      # For content searching
+        *git_tools,     # For git operations
+        create_orchestration_tool(internal_tools, on_tool_call=lambda name, args: None)  # For complex multi-step tasks
     ]
     
     # Get agent-specific instructions from config
@@ -155,7 +168,7 @@ async def run_synlogos(
         existing_messages=state.messages if state.messages else None,
         on_tool_result=on_tool_result
     )
-    
+
     # Update conversation history
     if isinstance(result, Success):
         response_text, updated_messages = result.unwrap()
@@ -163,7 +176,7 @@ async def run_synlogos(
         state.messages.extend(updated_messages)
         return Success(response_text)
     else:
-        return result
+        return Failure(result.failure())
 
 
 class Synlogos:

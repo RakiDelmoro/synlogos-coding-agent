@@ -186,8 +186,55 @@ def build_execution_namespace(
 
 
 def wrap_code_in_async_function(code: str) -> str:
-    """Wrap user code in an async function for execution"""
-    indented_code = "\n".join(f"    {line}" for line in code.split("\n"))
+    """Wrap user code in an async function for execution.
+    
+    IMPORTANT: We carefully handle multi-line strings to preserve their content.
+    Lines inside triple-quoted strings are not indented.
+    """
+    lines = code.split('\n')
+    result_lines = []
+    in_triple_quote = None  # None, '"""', or "'''"
+    
+    for line in lines:
+        # Check if we're entering or leaving a triple-quoted string
+        # Count unescaped triple quotes
+        temp = line
+        while True:
+            if in_triple_quote is None:
+                # Look for start of triple-quoted string
+                dbl_idx = temp.find('"""')
+                sgl_idx = temp.find("'''")
+                
+                if dbl_idx != -1 and (sgl_idx == -1 or dbl_idx < sgl_idx):
+                    in_triple_quote = '"""'
+                    temp = temp[dbl_idx + 3:]
+                elif sgl_idx != -1:
+                    in_triple_quote = "'''"
+                    temp = temp[sgl_idx + 3:]
+                else:
+                    break
+            else:
+                # Look for end of current triple-quoted string
+                end_idx = temp.find(in_triple_quote)
+                if end_idx != -1:
+                    in_triple_quote = None
+                    temp = temp[end_idx + 3:]
+                else:
+                    break
+        
+        # Only indent lines that are outside triple-quoted strings
+        if in_triple_quote is None or line.strip() == '' or result_lines == []:
+            # Check if line is only whitespace and we're inside a string
+            if in_triple_quote is not None and line.strip() == '':
+                # Blank line inside string - don't indent
+                result_lines.append(line)
+            else:
+                result_lines.append('    ' + line)
+        else:
+            # Inside a triple-quoted string - keep as-is
+            result_lines.append(line)
+    
+    indented_code = '\n'.join(result_lines)
     return f"""async def __synlogos_main():
 {indented_code}
     return locals().get('result', None)

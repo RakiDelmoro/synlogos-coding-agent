@@ -1,4 +1,5 @@
 """Tests for Synlogos agent components"""
+import os
 import pytest
 import asyncio
 from returns.result import Success, Failure
@@ -20,15 +21,18 @@ class TestAgentCreation:
     """Test agent factory functions"""
     
     def test_create_synlogos_with_defaults(self):
-        state = create_synlogos()
-        assert state.config.model == "llama-3.3-70b-versatile"
+        result = create_synlogos()
+        assert isinstance(result, Success)
+        state = result.unwrap()
+        assert state.config.model == ""  # Default is empty string
         assert state.sandbox is None
     
     def test_create_synlogos_with_config(self):
         config = AgentConfig(model="test-model", max_turns=10)
-        state = create_synlogos(config=config, api_key="test-key")
+        result = create_synlogos(config=config)
+        assert isinstance(result, Success)
+        state = result.unwrap()
         assert state.config.model == "test-model"
-        assert state.api_key == "test-key"
 
 
 class TestTools:
