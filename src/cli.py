@@ -411,10 +411,23 @@ async def run():
                     console.print()
                     
                     tool_count = 0
+                    has_shown_reasoning = False
+                    last_response_text = ""
                     
                     def on_tool_call(name: str, args: dict):
-                        nonlocal tool_count
+                        nonlocal tool_count, has_shown_reasoning
                         tool_count += 1
+                        
+                        # If we haven't shown reasoning yet, show it now before tools
+                        if not has_shown_reasoning and last_response_text:
+                            has_shown_reasoning = True
+                            console.print()
+                            console.print(Panel(
+                                Markdown(last_response_text),
+                                title="[bold blue]🤔 Reasoning[/bold blue]",
+                                border_style="blue",
+                                padding=(1, 1)
+                            ))
                         
                         # Show tool execution header
                         console.print()
@@ -453,31 +466,37 @@ async def run():
                         console.print("[dim]   Running...[/dim]")
                     
                     def on_response(text: str):
-                        if text and text.strip():
-                            # Display thinking/reasoning before any tool calls
-                            console.print()
-                            console.print(Panel(
-                                Markdown(text),
-                                title="[bold blue]🤔 Thinking[/bold blue]",
-                                border_style="blue",
-                                padding=(1, 1)
-                            ))
+                        nonlocal last_response_text
+                        # Store the response text but don't display it yet
+                        # We'll decide later whether it's reasoning or the final answer
+                        last_response_text = text
                     
                     result = await agent.run(prompt, on_tool_call, on_response, on_token_update)
                     
                     if isinstance(result, Failure):
                         console.print(f"\n[red]❌ Error: {result.failure()}[/]")
-                    elif tool_count > 0:
-                        console.print(f"\n[green]✓[/] [dim]Completed {tool_count} tool call(s)[/dim]")
-                        # Show final result content
-                        if isinstance(result, Success):
-                            final_text = result.unwrap()
+                    elif isinstance(result, Success):
+                        final_text = result.unwrap()
+                        
+                        if tool_count > 0:
+                            # Tools were executed - show reasoning was already shown, now show final result
+                            console.print(f"\n[green]✓[/] [dim]Completed {tool_count} tool call(s)[/dim]")
                             if final_text:
                                 console.print()
                                 console.print(Panel(
                                     Markdown(final_text),
                                     title="[bold green]✅ Final Result[/bold green]",
                                     border_style="green",
+                                    padding=(1, 2)
+                                ))
+                        else:
+                            # No tools executed - this IS the response, not reasoning
+                            if final_text:
+                                console.print()
+                                console.print(Panel(
+                                    Markdown(final_text),
+                                    title="[bold cyan]💬 Response[/bold cyan]",
+                                    border_style="cyan",
                                     padding=(1, 2)
                                 ))
                     
