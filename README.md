@@ -4,6 +4,8 @@
 
 A professional AI coding agent built with functional programming patterns in Python. Synlogos acts as your autonomous coding companion, capable of reading, writing, editing files, executing shell commands, running code, and managing git operations.
 
+![Synlogos CLI](cli-display.png)
+
 ## Features
 
 - **Autonomous Coding Agent** — Interact naturally to accomplish complex coding tasks
@@ -22,8 +24,8 @@ A professional AI coding agent built with functional programming patterns in Pyt
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/synlogos.git
-cd synlogos
+git clone https://github.com/RakiDelmoro/synlogos-coding-agent.git
+cd synlogos-coding-agent
 
 # Install with pip
 pip install -e .
