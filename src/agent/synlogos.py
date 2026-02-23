@@ -37,6 +37,9 @@ class SynlogosState:
     sandbox: LocalSandbox | None = None
     provider_state: UnifiedProviderState | None = None
     messages: list[dict] = field(default_factory=list)  # Conversation history
+    session_summary: str = ""  # Auto-compact summary
+    max_context_tokens: int = 8000  # Default context limit
+    auto_compact_threshold: float = 0.8  # Compact at 80% of limit
 
 
 def create_synlogos(
@@ -156,6 +159,41 @@ async def run_synlogos(
         if state.agent_type and state.agent_type in config.agent_types:
             custom_instructions = config.agent_types[state.agent_type].instructions
     
+    # Check if we need to auto-compact (OpenCode-style)
+    # Estimate tokens: ~4 chars per token on average
+    total_chars = sum(len(str(m.get("content", ""))) for m in state.messages)
+    estimated_tokens = total_chars // 4
+    
+    if estimated_tokens > state.max_context_tokens * state.auto_compact_threshold:
+        # Auto-compact: summarize older messages
+        from src.tools.functional_tools import create_orchestration_tool
+        from src.sandbox.local_sandbox import LocalSandbox
+        
+        # Create a compact summary of the session so far
+        compact_prompt = f"""Summarize this conversation history into 2-3 sentences capturing:
+1. What we've accomplished so far
+2. Current context/state
+3. Any pending tasks
+
+Keep it concise for context preservation.
+
+History: {state.messages[:-3] if len(state.messages) > 3 else state.messages}"""
+        
+        # Store old messages and reset with just summary
+        state.session_summary = f"[Session Summary]: Previous work summarized: " + \
+            f"We've completed {len(state.messages)//2} interactions. " + \
+            f"Current context: {state.messages[-1].get('content', '')[100:]}..."
+        
+        # Keep only last 3 messages + summary
+        state.messages = [{"role": "system", "content": state.session_summary}] + state.messages[-3:]
+        
+        if on_response:
+            on_response("[Auto-compacted conversation to save tokens]")
+    
+    # Truncate conversation history to last 10 messages (prevent token bloat)
+    max_history = 10
+    truncated_messages = state.messages[-max_history:] if state.messages else None
+    
     # Run with conversation history
     result = await run_with_prompt(
         state=state.provider_state,
@@ -165,7 +203,7 @@ async def run_synlogos(
         on_tool_call=on_tool_call,
         on_response=on_response,
         on_token_update=on_token_update,
-        existing_messages=state.messages if state.messages else None,
+        existing_messages=truncated_messages,
         on_tool_result=on_tool_result
     )
 
@@ -174,6 +212,9 @@ async def run_synlogos(
         response_text, updated_messages = result.unwrap()
         state.messages.clear()
         state.messages.extend(updated_messages)
+        # Keep only last 10 messages to prevent token bloat
+        if len(state.messages) > max_history:
+            state.messages = state.messages[-max_history:]
         return Success(response_text)
     else:
         return Failure(result.failure())
