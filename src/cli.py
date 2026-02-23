@@ -465,13 +465,27 @@ async def run():
                         
                         console.print("[dim]   Running...[/dim]")
                     
+                    def on_tool_result(name: str, args: dict, output: str):
+                        """Display tool results as they complete"""
+                        if output and output.strip():
+                            # Show truncated output for large results
+                            max_len = 500
+                            display_output = output[:max_len] + "..." if len(output) > max_len else output
+                            
+                            console.print()
+                            console.print(Panel(
+                                f"[dim]{display_output}[/dim]",
+                                title=f"[green]📤 {name} Result[/green]",
+                                border_style="green"
+                            ))
+                    
                     def on_response(text: str):
                         nonlocal last_response_text
                         # Store the response text but don't display it yet
                         # We'll decide later whether it's reasoning or the final answer
                         last_response_text = text
                     
-                    result = await agent.run(prompt, on_tool_call, on_response, on_token_update)
+                    result = await agent.run(prompt, on_tool_call, on_response, on_token_update, on_tool_result)
                     
                     if isinstance(result, Failure):
                         console.print(f"\n[red]❌ Error: {result.failure()}[/]")

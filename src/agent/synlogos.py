@@ -128,7 +128,8 @@ async def run_synlogos(
     prompt: str,
     on_tool_call: Callable[[str, dict], None] | None = None,
     on_response: Callable[[str], None] | None = None,
-    on_token_update: Callable[[int, int, int], None] | None = None
+    on_token_update: Callable[[int, int, int], None] | None = None,
+    on_tool_result: Callable[[str, dict, str], None] | None = None
 ) -> Result[str, str]:
     """Run a prompt through the agent with conversation history"""
     if not state.provider_state:
@@ -151,7 +152,8 @@ async def run_synlogos(
         on_tool_call=on_tool_call,
         on_response=on_response,
         on_token_update=on_token_update,
-        existing_messages=state.messages if state.messages else None
+        existing_messages=state.messages if state.messages else None,
+        on_tool_result=on_tool_result
     )
     
     # Update conversation history
@@ -203,7 +205,8 @@ class Synlogos:
         prompt: str,
         on_tool_call: Callable[[str, dict], None] | None = None,
         on_response: Callable[[str], None] | None = None,
-        on_token_update: Callable[[int, int, int], None] | None = None
+        on_token_update: Callable[[int, int, int], None] | None = None,
+        on_tool_result: Callable[[str, dict, str], None] | None = None
     ) -> Result[str, str]:
         """
         Run a prompt through the agent.
@@ -213,11 +216,12 @@ class Synlogos:
             on_tool_call: Callback for tool calls
             on_response: Callback for LLM responses
             on_token_update: Callback for token usage updates (prompt, completion, total)
+            on_tool_result: Callback for tool results (name, args, output)
         
         Returns:
             Result with the final response or error
         """
-        return await run_synlogos(self._state, prompt, on_tool_call, on_response, on_token_update)
+        return await run_synlogos(self._state, prompt, on_tool_call, on_response, on_token_update, on_tool_result)
     
     @property
     def provider_name(self) -> str | None:

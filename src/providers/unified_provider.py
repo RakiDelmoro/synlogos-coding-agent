@@ -308,7 +308,8 @@ def clean_tool_arguments(arguments_str: str) -> dict:
 async def process_tool_call(
     state: UnifiedProviderState,
     tool_call: Any,
-    on_tool_call: Callable[[str, dict], None] | None = None
+    on_tool_call: Callable[[str, dict], None] | None = None,
+    on_tool_result: Callable[[str, dict, str], None] | None = None
 ) -> dict[str, Any]:
     """Process a single tool call"""
     tool_name = tool_call.function.name
@@ -321,8 +322,12 @@ async def process_tool_call(
     
     if isinstance(result, Success):
         content = result.unwrap().model_dump_json()
+        if on_tool_result:
+            on_tool_result(tool_name, arguments, result.unwrap().output)
     else:
         content = json.dumps({"error": result.failure()})
+        if on_tool_result:
+            on_tool_result(tool_name, arguments, f"Error: {result.failure()}")
     
     return {
         "role": "tool",
@@ -372,7 +377,8 @@ async def run_agent_loop(
     max_turns: int,
     on_tool_call: Callable[[str, dict], None] | None = None,
     on_response: Callable[[str], None] | None = None,
-    on_token_update: Callable[[int, int, int], None] | None = None
+    on_token_update: Callable[[int, int, int], None] | None = None,
+    on_tool_result: Callable[[str, dict, str], None] | None = None
 ) -> Result[str, str]:
     """Run the agent loop with tool calling"""
     tool_defs = build_tool_definitions(state.tools) if state.tools else None
@@ -417,7 +423,7 @@ async def run_agent_loop(
             if tool_name == "orchestrate":
                 orchestrate_called = True
             
-            tool_response = await process_tool_call(state, tool_call, on_tool_call)
+            tool_response = await process_tool_call(state, tool_call, on_tool_call, on_tool_result)
             messages.append(tool_response)
         
         # After first orchestrate, remind the LLM to stop calling tools and INCLUDE RESULTS
@@ -438,7 +444,8 @@ async def run_with_prompt(
     on_tool_call: Callable[[str, dict], None] | None = None,
     on_response: Callable[[str], None] | None = None,
     on_token_update: Callable[[int, int, int], None] | None = None,
-    existing_messages: list[dict[str, Any]] | None = None
+    existing_messages: list[dict[str, Any]] | None = None,
+    on_tool_result: Callable[[str, dict, str], None] | None = None
 ) -> Result[tuple[str, list[dict[str, Any]]], str]:
     """Main entry point for running with a prompt
     
@@ -453,7 +460,7 @@ async def run_with_prompt(
         # Start fresh conversation
         messages = build_messages(prompt, custom_instructions)
     
-    result = await run_agent_loop(state, messages, max_turns, on_tool_call, on_response, on_token_update)
+    result = await run_agent_loop(state, messages, max_turns, on_tool_call, on_response, on_token_update, on_tool_result)
     
     if isinstance(result, Success):
         # Return both the response text and the updated messages for history
