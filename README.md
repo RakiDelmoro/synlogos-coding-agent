@@ -1,11 +1,21 @@
 ![Synlogos CLI](cli-display.png)
 
-A professional AI coding agent built with functional programming patterns in Python. Synlogos acts as your autonomous coding companion, capable of reading, writing, editing files, executing shell commands, running code, and managing git operations.
+A professional multi-provider AI coding agent built with functional programming patterns in Python. Synlogos acts as your autonomous coding companion, supporting multiple LLM providers and specialized agent types for different coding tasks.
 
 ## Features
 
-- **Autonomous Coding Agent** — Interact naturally to accomplish complex coding tasks
-- **TogetherAI Powered** — Uses Llama-3.3-70B-Instruct-Turbo with 128K context
+- **Multi-Provider Support** — Works with opencode.ai (free), TogetherAI, Ollama (local), Groq, and any OpenAI-compatible API
+- **Specialized Agent Types** — Different agents optimized for specific tasks:
+  - `explore` — Fast file and codebase exploration
+  - `code` — Primary coding agent for complex tasks
+  - `architect` — System design and architecture decisions
+  - `plan` — Task planning and analysis
+  - `grep` — Search specialist
+  - `summarize` — Code and diff summarization
+  - `web_search` — Web information retrieval
+  - `memory` — Memory management agent
+- **JSON Configuration** — Simple `synlogos.json` config file for providers and agents
+- **Programmatic Tool Calling** — LLM writes code that orchestrates multiple tools efficiently
 - **Functional Architecture** — Built with Result monads, immutable state, and pure functions
 - **Rich Tool Set**:
   - File operations: read, write, edit
@@ -30,26 +40,91 @@ pip install -e .
 pip install -e ".[dev]"
 ```
 
-## Quick Start
+## Configuration
 
-1. Set your TogetherAI API key:
+Synlogos uses `synlogos.json` for configuration. Create this file in your project root:
 
-```bash
-export TOGETHER_API_KEY="your-api-key-here"
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "theme": "matrix",
+  "instructions": ["SOUL.md"],
+  "provider": {
+    "opencode": {
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "https://opencode.ai/zen/v1",
+        "apiKey": "your-api-key"
+      },
+      "models": {
+        "glm-5-free": { "model": "glm-5-free" },
+        "kimi-k2-free": { "model": "kimi-k2-free" }
+      }
+    },
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "http://localhost:11434/v1"
+      },
+      "models": {
+        "qwen3:8b": { "model": "qwen3:8b" }
+      }
+    },
+    "togetherai": {
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "https://api.together.xyz/v1",
+        "apiKey": "your-api-key"
+      },
+      "models": {
+        "moonshotai/Kimi-K2.5": {}
+      }
+    }
+  },
+  "model": "togetherai/moonshotai/Kimi-K2.5",
+  "agent": {
+    "explore": {
+      "model": "ollama/qwen3:8b",
+      "instructions": "You are a fast file and codebase explorer..."
+    },
+    "code": {
+      "model": "togetherai/moonshotai/Kimi-K2.5",
+      "instructions": "You are the primary coding agent..."
+    }
+  }
+}
 ```
 
-Get your API key at [TogetherAI](https://api.together.xyz/settings/api-keys).
+### Provider Setup
+
+**Free Options:**
+- **opencode.ai** — Get free API key at https://opencode.ai (no signup required)
+- **Ollama** — Run locally: `ollama pull qwen3:8b && ollama serve`
+
+**Commercial Options:**
+- **TogetherAI** — Get API key at https://api.together.xyz/settings/api-keys
+- **Groq** — Get free tier API key at https://console.groq.com/keys
+
+## Quick Start
+
+1. Create your `synlogos.json` config file (see example above)
 
 2. Run Synlogos:
 
 ```bash
+# Default agent
 synlogos
-```
 
-Or directly:
+# Or use a specific agent type
+synlogos --agent explore
+synlogos --agent code
+synlogos --agent architect
 
-```bash
-python -m src.cli
+# See available agents
+synlogos --list-agents
+
+# See configured providers
+synlogos --list-providers
 ```
 
 ## Usage
@@ -68,53 +143,89 @@ You: Commit the changes with a descriptive message
 
 Type `exit` or `quit` to end the session.
 
+### Slash Commands
+
+While the agent is running, you can use slash commands for quick actions:
+
+```
+/help              Show available slash commands
+/agents            List all available agent types
+/provider          Show current provider and model
+/providers         List all configured providers
+/tokens            Show current token usage
+/config            Show current configuration
+clear              Clear the screen
+/exit              Exit the session (same as 'exit')
+```
+
+Example:
+```
+You: /help
+You: /agents
+You: /tokens
+You: /provider
+```
+
+### CLI Options
+
+```
+synlogos [options]
+
+Options:
+  --agent TYPE          Agent type: explore, code, architect, plan, grep, summarize, web_search, memory
+  --list-agents         Show available agents and exit
+  --list-providers      Show configured providers and exit
+  --config PATH         Path to synlogos.json config file
+  --max-turns N         Maximum conversation turns (default: 30)
+  -h, --help            Show help message
+```
+
 ## Architecture
 
 Synlogos is built with functional programming principles:
 
 - **Result Monads** — Explicit error handling using the `returns` library
 - **Immutable State** — State is threaded through pure functions, never mutated
-- **Factory Functions** — Tools and agents created via `create_tool()`, `create_agent()` patterns
-- **Protocol-based Design** — Clean interfaces for extensibility
+- **Multi-Provider Design** — Unified OpenAI-compatible API wrapper for all providers
+- **JSON-Based Config** — Simple declarative configuration
+- **Specialized Agents** — Each agent type has optimized models and instructions
 
 ```
 src/
-├── agent/           # Agent implementations
-│   └── synlogos.py  # Main Synlogos agent
-├── providers/       # LLM providers (TogetherAI)
-├── sandbox/         # Code execution sandbox
-├── tools/           # Tool implementations
-│   ├── files.py     # File operations
-│   ├── shell.py     # Shell commands
-│   ├── code.py      # Code execution
-│   └── git_tools.py # Git operations
-├── types.py         # Type definitions
-├── protocols.py     # Protocol interfaces
-└── cli.py           # CLI entry point
+├── agent/              # Agent implementations
+│   └── synlogos.py     # Main Synlogos agent with multi-provider support
+├── providers/          # LLM providers (unified interface)
+│   ├── unified_provider.py  # Universal OpenAI-compatible provider
+│   ├── groq_provider.py     # Groq provider
+│   └── ollama_provider.py   # Ollama provider
+├── config.py           # JSON config loader
+├── sandbox/            # Code execution sandbox
+├── tools/              # Tool implementations
+│   ├── functional_tools.py  # File ops, shell, code exec
+│   ├── advanced_tools.py    # Glob, grep
+│   └── git_tools.py         # Git operations
+├── types.py            # Type definitions
+└── cli.py              # CLI entry point
 ```
 
-## Configuration
+## How It Works
 
-Synlogos uses `AgentConfig` for configuration:
-
-```python
-from src.types import AgentConfig
-
-config = AgentConfig(
-    model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
-    max_turns=30
-)
-```
+1. **Configuration** — Load `synlogos.json` to determine provider and model
+2. **Agent Selection** — Choose agent type (each has its own model and instructions)
+3. **Prompt Processing** — User prompt sent to selected LLM
+4. **Tool Orchestration** — LLM generates Python code that calls tools
+5. **Execution** — Code runs in sandbox, tools execute operations
+6. **Results** — Final results returned to user
 
 ## Requirements
 
 - Python 3.11+
-- TogetherAI API key
+- API key for your chosen provider (or run Ollama locally)
 - Docker (optional, for sandboxed code execution)
 
 ## Dependencies
 
-- `together` — TogetherAI SDK
+- `openai` — OpenAI SDK (for OpenAI-compatible APIs)
 - `pydantic` — Data validation
 - `returns` — Result monads for functional error handling
 - `rich` — Beautiful terminal output
@@ -137,6 +248,25 @@ mypy src/
 pytest
 ```
 
+## Migrating from v1
+
+If you were using Synlogos v1 (TogetherAI-only):
+
+1. Update your environment variables:
+   - Remove: `TOGETHER_API_KEY`
+   - Add: Create `synlogos.json` config file
+
+2. Update imports (if using programmatically):
+   ```python
+   # Old
+   from src.types import AgentConfig
+   config = AgentConfig(model="meta-llama/...")
+   
+   # New
+   from src.agent.synlogos import Synlogos
+   agent = Synlogos(agent_type="code")
+   ```
+
 ## License
 
 MIT License — see [LICENSE](LICENSE) for details.
@@ -148,6 +278,9 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## Acknowledgments
 
 Built with love using:
+- [OpenCode](https://opencode.ai) — Free AI model access
 - [TogetherAI](https://together.ai) — Fast, affordable LLM inference
+- [Ollama](https://ollama.ai) — Local LLM inference
+- [Groq](https://groq.com) — Fast inference
 - [Rich](https://github.com/Textualize/rich) — Beautiful terminal formatting
 - [Returns](https://github.com/dry-python/returns) — Functional programming in Python

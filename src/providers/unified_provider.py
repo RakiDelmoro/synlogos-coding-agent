@@ -1,12 +1,13 @@
+"""Unified provider manager that routes to the correct provider based on config"""
 import os
-import json
 from typing import Callable, Any
 from dataclasses import dataclass, field
-from together import Together
+from openai import OpenAI
 from returns.result import Result, Success, Failure
 
 from src.types import ToolResult
 from src.tools.functional_tools import FunctionalTool
+from src.config import OpenCodeConfig, get_agent_config
 
 
 @dataclass
@@ -22,19 +23,24 @@ class TokenUsage:
 
 
 @dataclass
-class ProviderState:
-    client: Together
+class UnifiedProviderState:
+    """State for the unified provider - wraps OpenAI client"""
+    client: OpenAI
+    provider_name: str
     model: str
     tools: tuple[FunctionalTool, ...]
     tool_map: dict[str, FunctionalTool]
+    base_url: str
+    api_key: str | None
     token_usage: TokenUsage = field(default_factory=TokenUsage)
 
 
-def get_system_prompt() -> str:
-    cwd = os.getcwd()
-    return f"""You are an AI coding agent that uses programmatic tool calling for all tasks.
+# System prompt (same for all providers)
+SYSTEM_PROMPT_TEMPLATE = """You are an AI coding agent that uses programmatic tool calling for all tasks.
 
 Working directory: {cwd}
+
+{custom_instructions}
 
 THINKING VISIBILITY - SHOW YOUR REASONING:
 Before using any tools, ALWAYS explain your thinking process. This helps users understand your approach.
@@ -162,25 +168,58 @@ When orchestrate returns results, you MUST include them in your response:
 Always think through problems step by step."""
 
 
-def create_provider(api_key: str, tools: list[FunctionalTool], model: str = "meta-llama/Llama-3.3-70B-Instruct-Turbo") -> ProviderState:
-    client = Together(api_key=api_key)
+def create_unified_provider(
+    config: OpenCodeConfig,
+    tools: list[FunctionalTool],
+    agent_type: str | None = None,
+    model_override: str | None = None
+) -> Result[UnifiedProviderState, str]:
+    """Create a unified provider based on configuration"""
+    
+    # Get agent configuration
+    agent_config_result = get_agent_config(config, agent_type, model_override)
+    if isinstance(agent_config_result, Failure):
+        return agent_config_result
+    
+    provider_name, model, api_key, instructions = agent_config_result.unwrap()
+    
+    # Get provider config for base URL
+    if provider_name not in config.providers:
+        return Failure(f"Unknown provider: {provider_name}")
+    
+    provider_config = config.providers[provider_name]
+    base_url = provider_config.base_url
+    
+    # Create OpenAI client (all providers use OpenAI-compatible API)
+    try:
+        client = OpenAI(
+            base_url=base_url,
+            api_key=api_key or "not-needed"  # Some local providers don't require API keys
+        )
+    except Exception as e:
+        return Failure(f"Failed to create client: {e}")
+    
     tool_map = {t.name: t for t in tools}
-    return ProviderState(
+    
+    return Success(UnifiedProviderState(
         client=client,
+        provider_name=provider_name,
         model=model,
         tools=tuple(tools),
-        tool_map=tool_map
-    )
+        tool_map=tool_map,
+        base_url=base_url,
+        api_key=api_key
+    ))
 
 
-def build_system_prompt(instructions: str | None = None) -> str:
-    base = get_system_prompt()
-    if instructions:
-        return f"{base}\n\n{instructions}"
-    return base
+def build_system_prompt(custom_instructions: str = "") -> str:
+    """Build system prompt with optional custom instructions"""
+    cwd = os.getcwd()
+    return SYSTEM_PROMPT_TEMPLATE.format(cwd=cwd, custom_instructions=custom_instructions)
 
 
 def build_tool_definitions(tools: tuple[FunctionalTool, ...]) -> list[dict[str, Any]]:
+    """Build tool definitions for OpenAI API"""
     return [
         {
             "type": "function",
@@ -194,22 +233,28 @@ def build_tool_definitions(tools: tuple[FunctionalTool, ...]) -> list[dict[str, 
     ]
 
 
-def build_messages(prompt: str, instructions: str | None = None) -> list[dict[str, Any]]:
+def build_messages(prompt: str, custom_instructions: str = "") -> list[dict[str, Any]]:
+    """Build message list for API"""
     return [
-        {"role": "system", "content": build_system_prompt(instructions)},
+        {"role": "system", "content": build_system_prompt(custom_instructions)},
         {"role": "user", "content": prompt}
     ]
 
 
 async def execute_tool(
-    state: ProviderState,
+    state: UnifiedProviderState,
     tool_name: str,
     arguments: dict
 ) -> Result[ToolResult, str]:
+    """Execute a tool by name"""
     tool = state.tool_map.get(tool_name)
     if not tool:
         return Failure(f"Unknown tool: {tool_name}")
     return await tool.execute(**arguments)
+
+
+import json
+import re
 
 
 def clean_tool_arguments(arguments_str: str) -> dict:
@@ -225,8 +270,6 @@ def clean_tool_arguments(arguments_str: str) -> dict:
         # This happens with orchestrate code parameter
         if '"code":' in cleaned or "'code':" in cleaned:
             # Extract the code value between quotes
-            import re
-            # Match "code": "..." or "code": '...' with content that may have newlines
             patterns = [
                 r'"code":\s*"(.*?)"(?=,|})',
                 r"'code':\s*'(.*?)'(?=,|})",
@@ -258,10 +301,11 @@ def clean_tool_arguments(arguments_str: str) -> dict:
 
 
 async def process_tool_call(
-    state: ProviderState,
+    state: UnifiedProviderState,
     tool_call: Any,
     on_tool_call: Callable[[str, dict], None] | None = None
 ) -> dict[str, Any]:
+    """Process a single tool call"""
     tool_name = tool_call.function.name
     arguments = clean_tool_arguments(tool_call.function.arguments)
     
@@ -283,10 +327,11 @@ async def process_tool_call(
 
 
 async def run_completion(
-    state: ProviderState,
+    state: UnifiedProviderState,
     messages: list[dict[str, Any]],
     tool_defs: list[dict[str, Any]] | None
 ) -> Result[tuple[dict[str, Any], list[dict[str, Any]]], str]:
+    """Run a completion with the provider"""
     try:
         response = state.client.chat.completions.create(
             model=state.model,
@@ -295,25 +340,27 @@ async def run_completion(
             tool_choice="auto" if tool_defs else None,
         )
         
-        if response.usage:
+        # Track token usage if available
+        if hasattr(response, 'usage') and response.usage:
             state.token_usage.add(
-                response.usage.prompt_tokens,
-                response.usage.completion_tokens
+                getattr(response.usage, 'prompt_tokens', 0),
+                getattr(response.usage, 'completion_tokens', 0)
             )
         
         assistant_message = response.choices[0].message
         return Success((assistant_message.model_dump(), messages))
     except Exception as e:
-        return Failure(str(e))
+        return Failure(f"{state.provider_name} API error: {e}")
 
 
 async def run_agent_loop(
-    state: ProviderState,
+    state: UnifiedProviderState,
     messages: list[dict[str, Any]],
     max_turns: int,
     on_tool_call: Callable[[str, dict], None] | None = None,
     on_response: Callable[[str], None] | None = None
 ) -> Result[str, str]:
+    """Run the agent loop with tool calling"""
     tool_defs = build_tool_definitions(state.tools) if state.tools else None
     orchestrate_called = False
     
@@ -370,12 +417,13 @@ async def run_agent_loop(
 
 
 async def run_with_prompt(
-    state: ProviderState,
+    state: UnifiedProviderState,
     prompt: str,
-    instructions: str | None = None,
+    custom_instructions: str = "",
     max_turns: int = 20,
     on_tool_call: Callable[[str, dict], None] | None = None,
     on_response: Callable[[str], None] | None = None
 ) -> Result[str, str]:
-    messages = build_messages(prompt, instructions)
+    """Main entry point for running with a prompt"""
+    messages = build_messages(prompt, custom_instructions)
     return await run_agent_loop(state, messages, max_turns, on_tool_call, on_response)

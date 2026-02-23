@@ -6,6 +6,7 @@ from returns.result import Result, Success, Failure
 
 from src.types import ToolResult, ToolDefinition
 from src.protocols import Tool, HasExecMethods
+from src.sandbox.programmatic_tools import execute_programmatic_code
 
 
 @dataclass(frozen=True)
@@ -218,3 +219,197 @@ def create_all_tools(sandbox: HasExecMethods) -> list[FunctionalTool]:
         create_shell_tool(sandbox),
         create_code_tool(sandbox),
     ]
+
+
+def create_orchestration_tool(
+    available_tools: tuple[FunctionalTool, ...],
+    on_tool_call: Callable[[str, dict], None] | None = None
+) -> FunctionalTool:
+    """
+    Create a tool for programmatic tool calling.
+    
+    Allows the LLM to write Python code that orchestrates multiple tool calls
+    without hitting context each time. Intermediate results stay in the code
+    execution environment, only the final result is returned.
+    """
+    async def orchestrate(
+        code: str,
+        description: str = "",
+        timeout: int = 120
+    ) -> Result[ToolResult, str]:
+        """Execute Python code that can call tools programmatically"""
+        
+        result = await execute_programmatic_code(
+            code=code,
+            tools=available_tools,
+            timeout=timeout,
+            on_tool_call=on_tool_call
+        )
+        
+        if isinstance(result, Success):
+            exec_result = result.unwrap()
+            
+            # Build summary
+            output_parts = []
+            if exec_result.get("stdout"):
+                output_parts.append(exec_result["stdout"])
+            
+            # Include the final result if present
+            final_result = exec_result.get("result")
+            if final_result:
+                if isinstance(final_result, ToolResult):
+                    if final_result.output:
+                        output_parts.append(f"\n{final_result.output}")
+                    if final_result.error:
+                        output_parts.append(f"\nError: {final_result.error}")
+                else:
+                    output_parts.append(f"\n{final_result}")
+            
+            # Count tool calls made
+            tool_count = exec_result.get("tool_calls", 0)
+            if tool_count > 0:
+                output_parts.append(f"\n[Executed {tool_count} tool calls programmatically]")
+            
+            # Check if there's an execution error
+            exec_error = exec_result.get("error")
+            if exec_error:
+                output_parts.append(f"\nExecution error: {exec_error}")
+            
+            return Success(ToolResult(output="".join(output_parts)))
+        else:
+            return Failure(result.failure())
+    
+    return FunctionalTool(
+        name="orchestrate",
+        description="""Execute Python code that orchestrates tool operations.
+
+CRITICAL: Your code runs INSIDE an async environment. DO NOT use import asyncio, DO NOT use asyncio.run(), DO NOT define async def main(). Just write code that uses await directly.
+
+Use this tool ONCE to complete a task, then respond with text only (no more tool calls).
+
+CRITICAL DISTINCTION:
+- "Create/write/save a FILE" → use write_file() → persists on disk
+- "Run/test/execute CODE" → use execute_code() → temporary, doesn't save
+
+Available tool functions (use with await):
+FILE OPERATIONS:
+- await read_file(path, offset=1, limit=2000) -> ToolResult
+- await write_file(path, content) -> ToolResult  
+- await edit_file(path, old_string, new_string, replace_all=False) -> ToolResult
+
+SEARCH:
+- await glob(pattern, path=None) -> ToolResult (returns file list)
+- await grep(pattern, path, include=None) -> ToolResult (returns matches)
+
+EXECUTION:
+- await shell(command, timeout=120, workdir=None) -> ToolResult
+- await execute_code(code, language="python", timeout=30) -> ToolResult
+
+GIT:
+- await git_status() -> ToolResult
+- await git_diff() -> ToolResult
+- await git_log(limit=10) -> ToolResult
+- await git_commit(message) -> ToolResult
+
+PARALLEL EXECUTION:
+Use asyncio.gather() to run multiple operations in parallel:
+    results = await asyncio.gather(*[read_file(f) for f in files])
+
+IMPORTANT:
+1. Code runs in async context - use await directly
+2. NO import asyncio needed
+3. NO async def main() needed  
+4. NO asyncio.run() needed
+5. Check result.error before using result.output
+6. Return via print() or set 'result' variable
+
+Examples:
+
+Read multiple files in parallel:
+```python
+files = await asyncio.gather(
+    read_file("src/types.py"),
+    read_file("src/protocols.py")
+)
+lines = sum(len(f.output.split("\\n")) for f in files if not f.error)
+print(f"Total lines: {lines}")
+```
+
+Search and process:
+```python
+# Find all Python files
+files_result = await glob("**/*.py")
+files = [f.strip() for f in files_result.output.split("\\n") if f.strip()]
+
+# Read them all in parallel
+contents = await asyncio.gather(*[read_file(f) for f in files[:5]])
+imports = []
+for content in contents:
+    if not content.error:
+        imports.extend([l for l in content.output.split("\\n") if l.startswith("import")])
+
+print(f"Found {len(imports)} import statements")
+```
+
+Create a file:
+```python
+# Create a new module
+await write_file("src/new_module.py", "def hello():\\n    return 'world'\\n")
+
+# Verify it was created
+result = await read_file("src/new_module.py")
+if not result.error:
+    print("File created successfully")
+    print(result.output)
+else:
+    print(f"Error: {result.error}")
+```
+
+"Create a file" vs "Execute code" - DIFFERENT TOOLS:
+
+Example 1 - Creating a file (persists on disk):
+```python
+# User says: "Write a hello world program in Rust"
+# This CREATES a file - use write_file
+
+# Use escaped newlines in the string
+content = "fn main() { println!(\"Hello, world!\"); }"
+await write_file("hello.rs", content)
+result = await shell("rustc hello.rs && ./hello")
+if not result.error:
+    print(result.output)
+```
+
+Example 2 - Executing code (temporary, doesn't save):
+```python
+# User says: "Test this Rust code"
+# This runs code temporarily - use execute_code
+
+code = "fn main() { println!(\"Hello, world!\"); }"
+result = await execute_code(code, language="rust")
+if not result.error:
+    print(result.output)
+```""",
+        parameters_schema=make_tool_schema(
+            name="orchestrate",
+            description="Execute orchestration code",
+            properties={
+                "code": {
+                    "type": "string",
+                    "description": "Python code to execute as a single-line JSON string. Use \\n for newlines. Example: \"await write_file('test.txt','hello')\\nprint('done')\". NO actual newlines. NO triple quotes."
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Brief description of what this code does",
+                    "default": ""
+                },
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds",
+                    "default": 120
+                }
+            },
+            required=["code"]
+        ),
+        executor=orchestrate
+    )

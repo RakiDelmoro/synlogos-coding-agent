@@ -2,7 +2,7 @@ import os
 import json
 from typing import Callable, Any
 from dataclasses import dataclass, field
-from together import Together
+from openai import OpenAI
 from returns.result import Result, Success, Failure
 
 from src.types import ToolResult
@@ -22,8 +22,8 @@ class TokenUsage:
 
 
 @dataclass
-class ProviderState:
-    client: Together
+class GroqProviderState:
+    client: OpenAI
     model: str
     tools: tuple[FunctionalTool, ...]
     tool_map: dict[str, FunctionalTool]
@@ -162,10 +162,14 @@ When orchestrate returns results, you MUST include them in your response:
 Always think through problems step by step."""
 
 
-def create_provider(api_key: str, tools: list[FunctionalTool], model: str = "meta-llama/Llama-3.3-70B-Instruct-Turbo") -> ProviderState:
-    client = Together(api_key=api_key)
+def create_groq_provider(api_key: str, tools: list[FunctionalTool], model: str = "llama-3.3-70b-versatile") -> GroqProviderState:
+    """Create a Groq provider using OpenAI-compatible API."""
+    client = OpenAI(
+        api_key=api_key,
+        base_url="https://api.groq.com/openai/v1"
+    )
     tool_map = {t.name: t for t in tools}
-    return ProviderState(
+    return GroqProviderState(
         client=client,
         model=model,
         tools=tuple(tools),
@@ -202,7 +206,7 @@ def build_messages(prompt: str, instructions: str | None = None) -> list[dict[st
 
 
 async def execute_tool(
-    state: ProviderState,
+    state: GroqProviderState,
     tool_name: str,
     arguments: dict
 ) -> Result[ToolResult, str]:
@@ -258,7 +262,7 @@ def clean_tool_arguments(arguments_str: str) -> dict:
 
 
 async def process_tool_call(
-    state: ProviderState,
+    state: GroqProviderState,
     tool_call: Any,
     on_tool_call: Callable[[str, dict], None] | None = None
 ) -> dict[str, Any]:
@@ -283,7 +287,7 @@ async def process_tool_call(
 
 
 async def run_completion(
-    state: ProviderState,
+    state: GroqProviderState,
     messages: list[dict[str, Any]],
     tool_defs: list[dict[str, Any]] | None
 ) -> Result[tuple[dict[str, Any], list[dict[str, Any]]], str]:
@@ -308,7 +312,7 @@ async def run_completion(
 
 
 async def run_agent_loop(
-    state: ProviderState,
+    state: GroqProviderState,
     messages: list[dict[str, Any]],
     max_turns: int,
     on_tool_call: Callable[[str, dict], None] | None = None,
@@ -370,7 +374,7 @@ async def run_agent_loop(
 
 
 async def run_with_prompt(
-    state: ProviderState,
+    state: GroqProviderState,
     prompt: str,
     instructions: str | None = None,
     max_turns: int = 20,

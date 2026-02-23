@@ -85,10 +85,14 @@ async def write_to_local_sandbox(
     content: str
 ) -> Result[ToolResult, str]:
     try:
-        file_path = state.workdir / path.lstrip("/")
+        # Handle absolute vs relative paths correctly
+        if path.startswith("/"):
+            file_path = Path(path)
+        else:
+            file_path = state.workdir / path
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.write_text(content)
-        return Success(ToolResult(output=f"Wrote {len(content)} chars to {path}"))
+        return Success(ToolResult(output=f"Wrote {len(content)} chars to {file_path}"))
     except Exception as e:
         return Failure(str(e))
 

@@ -2,7 +2,7 @@ import os
 import json
 from typing import Callable, Any
 from dataclasses import dataclass, field
-from together import Together
+from openai import OpenAI
 from returns.result import Result, Success, Failure
 
 from src.types import ToolResult
@@ -22,8 +22,8 @@ class TokenUsage:
 
 
 @dataclass
-class ProviderState:
-    client: Together
+class OllamaProviderState:
+    client: OpenAI
     model: str
     tools: tuple[FunctionalTool, ...]
     tool_map: dict[str, FunctionalTool]
@@ -162,10 +162,19 @@ When orchestrate returns results, you MUST include them in your response:
 Always think through problems step by step."""
 
 
-def create_provider(api_key: str, tools: list[FunctionalTool], model: str = "meta-llama/Llama-3.3-70B-Instruct-Turbo") -> ProviderState:
-    client = Together(api_key=api_key)
+def create_ollama_provider(tools: list[FunctionalTool], model: str = "llama3.1", base_url: str = "http://localhost:11434") -> OllamaProviderState:
+    """Create an Ollama provider using OpenAI-compatible API.
+    
+    Note: Ollama must be running locally with the model pulled.
+    To start Ollama: `ollama serve`
+    To pull a model: `ollama pull llama3.1`
+    """
+    client = OpenAI(
+        base_url=f"{base_url}/v1",
+        api_key="ollama"  # Ollama doesn't require authentication
+    )
     tool_map = {t.name: t for t in tools}
-    return ProviderState(
+    return OllamaProviderState(
         client=client,
         model=model,
         tools=tuple(tools),
@@ -202,7 +211,7 @@ def build_messages(prompt: str, instructions: str | None = None) -> list[dict[st
 
 
 async def execute_tool(
-    state: ProviderState,
+    state: OllamaProviderState,
     tool_name: str,
     arguments: dict
 ) -> Result[ToolResult, str]:
@@ -258,7 +267,7 @@ def clean_tool_arguments(arguments_str: str) -> dict:
 
 
 async def process_tool_call(
-    state: ProviderState,
+    state: OllamaProviderState,
     tool_call: Any,
     on_tool_call: Callable[[str, dict], None] | None = None
 ) -> dict[str, Any]:
@@ -283,7 +292,7 @@ async def process_tool_call(
 
 
 async def run_completion(
-    state: ProviderState,
+    state: OllamaProviderState,
     messages: list[dict[str, Any]],
     tool_defs: list[dict[str, Any]] | None
 ) -> Result[tuple[dict[str, Any], list[dict[str, Any]]], str]:
@@ -295,10 +304,11 @@ async def run_completion(
             tool_choice="auto" if tool_defs else None,
         )
         
-        if response.usage:
+        # Note: Ollama may not return token usage
+        if hasattr(response, 'usage') and response.usage:
             state.token_usage.add(
-                response.usage.prompt_tokens,
-                response.usage.completion_tokens
+                getattr(response.usage, 'prompt_tokens', 0),
+                getattr(response.usage, 'completion_tokens', 0)
             )
         
         assistant_message = response.choices[0].message
@@ -308,7 +318,7 @@ async def run_completion(
 
 
 async def run_agent_loop(
-    state: ProviderState,
+    state: OllamaProviderState,
     messages: list[dict[str, Any]],
     max_turns: int,
     on_tool_call: Callable[[str, dict], None] | None = None,
@@ -370,7 +380,7 @@ async def run_agent_loop(
 
 
 async def run_with_prompt(
-    state: ProviderState,
+    state: OllamaProviderState,
     prompt: str,
     instructions: str | None = None,
     max_turns: int = 20,

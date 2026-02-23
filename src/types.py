@@ -35,7 +35,8 @@ class Message(BaseModel, frozen=True):
 
 
 class AgentConfig(BaseModel, frozen=True):
-    model: str = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+    model: str = ""  # Format: "provider/model" (e.g., "togetherai/moonshotai/Kimi-K2.5")
+    provider: str = ""  # Provider name (e.g., "togetherai", "ollama", "opencode")
     instructions: str | None = None
     sandbox_image: str = "python:3.11-slim"
     max_turns: int = 20

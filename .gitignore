@@ -35,6 +35,6 @@ ENV/
 htmlcov/
 *.log
 
-opencode.json
+synlogos.json
 .env
 .env.*

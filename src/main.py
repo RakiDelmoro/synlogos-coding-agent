@@ -13,9 +13,10 @@ console = Console()
 
 
 async def main():
-    api_key = os.environ.get("TOGETHER_API_KEY")
+    api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
-        console.print("[red]Error: TOGETHER_API_KEY environment variable not set[/red]")
+        console.print("[red]Error: GROQ_API_KEY environment variable not set[/red]")
+        console.print("[dim]Get your free key at https://console.groq.com/keys[/dim]")
         return
     
     console.print(Panel.fit(
@@ -26,7 +27,7 @@ async def main():
     ))
     
     config = AgentConfig(
-        model="meta-llama/Llama-3-70b-chat-hf",
+        model="llama-3.3-70b-versatile",
         max_turns=30
     )
     
