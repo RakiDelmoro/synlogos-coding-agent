@@ -157,12 +157,12 @@ async def run_synlogos(
         if state.agent_type and state.agent_type in config.agent_types:
             custom_instructions = config.agent_types[state.agent_type].instructions
     
-    # Check if we need to auto-compact (OpenCode-style) - trigger at 50% of 4K = 2K tokens
+    # Check if we need to auto-compact - trigger at 30% = 1200 tokens (OpenCode style)
     # Estimate tokens: ~4 chars per token on average
     total_chars = sum(len(str(m.get("content", ""))) for m in state.messages)
     estimated_tokens = total_chars // 4
     
-    if estimated_tokens > 2000:  # 50% of 4K context
+    if estimated_tokens > 1200:  # 30% threshold like OpenCode
         # Auto-compact: summarize older messages
         from src.tools.functional_tools import create_orchestration_tool
         from src.sandbox.local_sandbox import LocalSandbox
@@ -188,8 +188,8 @@ History: {state.messages[:-3] if len(state.messages) > 3 else state.messages}"""
         if on_response:
             on_response("[Auto-compacted conversation to save tokens]")
     
-    # Truncate conversation history to last 5 messages (prevent token bloat)
-    max_history = 5
+    # Truncate conversation history to last 3 messages (OpenCode-style minimal context)
+    max_history = 3
     truncated_messages = state.messages[-max_history:] if state.messages else None
     
     # Run with conversation history

@@ -12,6 +12,8 @@ class ModelConfig:
     """Configuration for a specific model"""
     model: str
     extra_options: dict[str, Any]
+    input_cost_per_1k: float = 0.0  # Cost per 1000 input tokens
+    output_cost_per_1k: float = 0.0  # Cost per 1000 output tokens
 
 
 @dataclass(frozen=True)

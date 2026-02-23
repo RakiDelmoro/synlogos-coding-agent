@@ -295,9 +295,10 @@ src/
 
 **🔄 Auto-Compact**
 - OpenCode-style automatic conversation summarization
-- Triggers at 80% of context window (configurable)
+- Triggers at 2K tokens (50% of 4K context)
 - Keeps last 3 messages + summary when compacting
 - Prevents 64K+ token bloat issues
+- System prompt reduced by 85% (~2K tokens saved per call)
 
 **📊 Session Metrics**
 - Real-time tracking with `/metrics` command

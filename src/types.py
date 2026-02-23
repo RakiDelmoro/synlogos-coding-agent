@@ -40,6 +40,10 @@ class AgentConfig(BaseModel, frozen=True):
     instructions: str | None = None
     sandbox_image: str = "python:3.11-slim"
     max_turns: int = 20
+    
+    # Cost tracking (per 1K tokens)
+    input_cost_per_1k: float = 0.0  # Cost per 1000 input tokens
+    output_cost_per_1k: float = 0.0  # Cost per 1000 output tokens
 
 
 class SandboxConfig(BaseModel, frozen=True):

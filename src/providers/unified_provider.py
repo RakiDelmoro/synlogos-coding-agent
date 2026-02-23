@@ -15,11 +15,26 @@ class TokenUsage:
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
+    # Cost tracking
+    input_cost_per_1k: float = 0.0
+    output_cost_per_1k: float = 0.0
+    total_cost: float = 0.0
     
     def add(self, prompt: int, completion: int):
         self.prompt_tokens += prompt
         self.completion_tokens += completion
         self.total_tokens += prompt + completion
+        # Calculate cost
+        input_cost = (prompt / 1000) * self.input_cost_per_1k
+        output_cost = (completion / 1000) * self.output_cost_per_1k
+        self.total_cost += input_cost + output_cost
+    
+    @property
+    def cost_str(self) -> str:
+        """Return formatted cost string like OpenCode: $4.68"""
+        if self.total_cost == 0:
+            return "$0.00"
+        return f"${self.total_cost:.2f}"
 
 
 @dataclass
@@ -35,23 +50,8 @@ class UnifiedProviderState:
     token_usage: TokenUsage = field(default_factory=TokenUsage)
 
 
-# System prompt (same for all providers)
-SYSTEM_PROMPT_TEMPLATE = """You are a coding assistant. Cwd: {cwd}
-
-{custom_instructions}
-
-Tools: read_file, write_file, edit_file, shell, execute_code, glob, grep, git_*, orchestrate
-
-Rules:
-1. Simple task -> DIRECT tool
-2. Multi-step -> ORCHESTRATE
-3. Question -> Answer directly, no tool
-4. Always show actual results, not "done"
-
-ERROR HANDLING:
-- If you see "Error:" in the output -> explain the error to the user
-- If code fails -> explain what you were trying to do and why it failed
-- Never pretend success when there was an error"""
+# System prompt (same for all providers) - Ultra minimal for low token usage
+SYSTEM_PROMPT_TEMPLATE = "cwd:{cwd}|tools:read,write,edit,shell,exec,glob,grep,git,orchestrate|rule:simple=direct,multi=orchestrate,ask=answer|err=explain"""
 
 
 def create_unified_provider(

@@ -68,13 +68,14 @@ def show_startup(cwd: str, provider: str, model: str, agent_type: str | None = N
 
 
 def show_token_usage(usage):
-    """Display token usage statistics"""
+    """Display token usage statistics with cost (OpenCode-style)"""
     table = Table(show_header=False, box=None)
     table.add_column("metric", style="dim")
     table.add_column("value", style="cyan")
+    table.add_row("Context:", f"{usage.total_tokens:,} tokens used")
+    table.add_row("Cost:", f"{usage.cost_str} spent")
     table.add_row("Prompt tokens:", f"{usage.prompt_tokens:,}")
     table.add_row("Completion tokens:", f"{usage.completion_tokens:,}")
-    table.add_row("Total tokens:", f"{usage.total_tokens:,}")
     console.print(table)
 
 
@@ -373,23 +374,28 @@ async def run_async():
             
             current_tokens = {"prompt": 0, "completion": 0, "total": 0}
             
+            # Cost tracking (OpenCode-style: $4.68 spent)
+            current_cost = 0.0
+            
             def create_token_status():
-                """Create a compact token usage status"""
+                """Create a compact token usage status with cost (OpenCode-style)"""
+                nonlocal current_cost
+                cost_str = f"${current_cost:.2f}" if current_cost > 0 else "$0.00"
                 return Text.assemble(
-                    ("Tokens: ", "dim"),
+                    ("Context: ", "dim"),
                     (f"{current_tokens['total']:,}", "cyan"),
-                    (" (", "dim"),
-                    (f"↑{current_tokens['prompt']:,}", "green"),
-                    (" ", "dim"),
-                    (f"↓{current_tokens['completion']:,}", "magenta"),
-                    (")", "dim")
+                    (" tokens ", "dim"),
+                    (f"({cost_str} spent)", "yellow")
                 )
             
             def on_token_update(prompt: int, completion: int, total: int):
-                """Callback to update token display"""
+                """Callback to update token display with cost"""
+                nonlocal current_cost
                 current_tokens["prompt"] = prompt
                 current_tokens["completion"] = completion
                 current_tokens["total"] = total
+                # Calculate cost: $0.50 per 1M input, $1.50 per 1M output (TogetherAI rates)
+                current_cost = (prompt / 1000000) * 0.5 + (completion / 1000000) * 1.5
             
             while True:
                 try:

@@ -413,3 +413,38 @@ if not result.error:
         ),
         executor=orchestrate
     )
+
+
+def create_semantic_search_tool() -> FunctionalTool:
+    """Create semantic search tool (vector-based code search)"""
+    from src.tools.semantic_search import semantic_search
+    
+    async def search(query: str, path: str = ".", top_k: int = 5) -> Result[ToolResult, str]:
+        return await semantic_search(query, path, top_k)
+    
+    return FunctionalTool(
+        name="semantic_search",
+        description="Search codebase semantically using TF-IDF. Finds files related to concepts, not just text matches.",
+        parameters_schema=make_tool_schema(
+            "semantic_search",
+            "Search for code by meaning/concepts, not just exact text. Good for finding related functions, implementations, or patterns.",
+            properties={
+                "query": {
+                    "type": "string",
+                    "description": "What you're looking for conceptually (e.g., 'function that handles auth', 'database connection code')"
+                },
+                "path": {
+                    "type": "string",
+                    "description": "Directory to search in",
+                    "default": "."
+                },
+                "top_k": {
+                    "type": "integer", 
+                    "description": "Number of results to return",
+                    "default": 5
+                }
+            },
+            required=["query"]
+        ),
+        executor=search
+    )
