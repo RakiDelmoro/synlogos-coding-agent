@@ -349,8 +349,36 @@ async def run():
             console.print(f"[dim]Connected to: {agent.provider_name}/{agent.model_name}[/dim]")
             console.print()
             
+            # Live token usage display
+            from rich.live import Live
+            from rich.text import Text
+            
+            current_tokens = {"prompt": 0, "completion": 0, "total": 0}
+            
+            def create_token_status():
+                """Create a compact token usage status"""
+                return Text.assemble(
+                    ("Tokens: ", "dim"),
+                    (f"{current_tokens['total']:,}", "cyan"),
+                    (" (", "dim"),
+                    (f"↑{current_tokens['prompt']:,}", "green"),
+                    (" ", "dim"),
+                    (f"↓{current_tokens['completion']:,}", "magenta"),
+                    (")", "dim")
+                )
+            
+            def on_token_update(prompt: int, completion: int, total: int):
+                """Callback to update token display"""
+                current_tokens["prompt"] = prompt
+                current_tokens["completion"] = completion
+                current_tokens["total"] = total
+            
             while True:
                 try:
+                    # Show token status before prompt
+                    if current_tokens["total"] > 0:
+                        console.print(create_token_status())
+                    
                     prompt = Prompt.ask("[bold blue]You[/bold blue]")
                     
                     # Handle slash commands
@@ -435,7 +463,7 @@ async def run():
                                 padding=(1, 1)
                             ))
                     
-                    result = await agent.run(prompt, on_tool_call, on_response)
+                    result = await agent.run(prompt, on_tool_call, on_response, on_token_update)
                     
                     if isinstance(result, Failure):
                         console.print(f"\n[red]❌ Error: {result.failure()}[/]")

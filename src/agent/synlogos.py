@@ -126,7 +126,8 @@ async def run_synlogos(
     state: SynlogosState,
     prompt: str,
     on_tool_call: Callable[[str, dict], None] | None = None,
-    on_response: Callable[[str], None] | None = None
+    on_response: Callable[[str], None] | None = None,
+    on_token_update: Callable[[int, int, int], None] | None = None
 ) -> Result[str, str]:
     """Run a prompt through the agent"""
     if not state.provider_state:
@@ -146,7 +147,8 @@ async def run_synlogos(
         custom_instructions=custom_instructions,
         max_turns=state.config.max_turns,
         on_tool_call=on_tool_call,
-        on_response=on_response
+        on_response=on_response,
+        on_token_update=on_token_update
     )
 
 
@@ -188,7 +190,8 @@ class Synlogos:
         self,
         prompt: str,
         on_tool_call: Callable[[str, dict], None] | None = None,
-        on_response: Callable[[str], None] | None = None
+        on_response: Callable[[str], None] | None = None,
+        on_token_update: Callable[[int, int, int], None] | None = None
     ) -> Result[str, str]:
         """
         Run a prompt through the agent.
@@ -197,11 +200,12 @@ class Synlogos:
             prompt: The user prompt
             on_tool_call: Callback for tool calls
             on_response: Callback for LLM responses
+            on_token_update: Callback for token usage updates (prompt, completion, total)
         
         Returns:
             Result with the final response or error
         """
-        return await run_synlogos(self._state, prompt, on_tool_call, on_response)
+        return await run_synlogos(self._state, prompt, on_tool_call, on_response, on_token_update)
     
     @property
     def provider_name(self) -> str | None:

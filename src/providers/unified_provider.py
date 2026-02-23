@@ -329,7 +329,8 @@ async def process_tool_call(
 async def run_completion(
     state: UnifiedProviderState,
     messages: list[dict[str, Any]],
-    tool_defs: list[dict[str, Any]] | None
+    tool_defs: list[dict[str, Any]] | None,
+    on_token_update: Callable[[int, int, int], None] | None = None
 ) -> Result[tuple[dict[str, Any], list[dict[str, Any]]], str]:
     """Run a completion with the provider"""
     try:
@@ -342,10 +343,17 @@ async def run_completion(
         
         # Track token usage if available
         if hasattr(response, 'usage') and response.usage:
-            state.token_usage.add(
-                getattr(response.usage, 'prompt_tokens', 0),
-                getattr(response.usage, 'completion_tokens', 0)
-            )
+            prompt_tokens = getattr(response.usage, 'prompt_tokens', 0)
+            completion_tokens = getattr(response.usage, 'completion_tokens', 0)
+            state.token_usage.add(prompt_tokens, completion_tokens)
+            
+            # Notify callback if provided
+            if on_token_update:
+                on_token_update(
+                    state.token_usage.prompt_tokens,
+                    state.token_usage.completion_tokens,
+                    state.token_usage.total_tokens
+                )
         
         assistant_message = response.choices[0].message
         return Success((assistant_message.model_dump(), messages))
@@ -358,14 +366,15 @@ async def run_agent_loop(
     messages: list[dict[str, Any]],
     max_turns: int,
     on_tool_call: Callable[[str, dict], None] | None = None,
-    on_response: Callable[[str], None] | None = None
+    on_response: Callable[[str], None] | None = None,
+    on_token_update: Callable[[int, int, int], None] | None = None
 ) -> Result[str, str]:
     """Run the agent loop with tool calling"""
     tool_defs = build_tool_definitions(state.tools) if state.tools else None
     orchestrate_called = False
     
     for turn in range(max_turns):
-        result = await run_completion(state, messages, tool_defs)
+        result = await run_completion(state, messages, tool_defs, on_token_update)
         
         if isinstance(result, Failure):
             return result
@@ -422,8 +431,9 @@ async def run_with_prompt(
     custom_instructions: str = "",
     max_turns: int = 20,
     on_tool_call: Callable[[str, dict], None] | None = None,
-    on_response: Callable[[str], None] | None = None
+    on_response: Callable[[str], None] | None = None,
+    on_token_update: Callable[[int, int, int], None] | None = None
 ) -> Result[str, str]:
     """Main entry point for running with a prompt"""
     messages = build_messages(prompt, custom_instructions)
-    return await run_agent_loop(state, messages, max_turns, on_tool_call, on_response)
+    return await run_agent_loop(state, messages, max_turns, on_tool_call, on_response, on_token_update)
