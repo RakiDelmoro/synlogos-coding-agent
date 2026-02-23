@@ -14,10 +14,14 @@ A professional multi-provider AI coding agent built with functional programming 
   - `summarize` — Code and diff summarization
   - `web_search` — Web information retrieval
   - `memory` — Memory management agent
-- **Hybrid Tool Calling** — NEW: Intelligent routing between direct tools and programmatic orchestration
+- **Hybrid Tool Calling** — Intelligent routing between direct tools and programmatic orchestration
   - Simple tasks use direct tools (faster, fewer tokens)
   - Complex tasks use orchestration (parallel execution, batch operations)
-- **Session Metrics** — NEW: Real-time tracking of tool usage and efficiency
+- **Auto-Compact** — NEW: Automatically summarizes conversation at 80% of context limit (OpenCode-style)
+  - Prevents token bloat and context window overflow
+  - Keeps only recent messages + summary
+- **Session Metrics** — Real-time tracking of tool usage and efficiency
+  - `/metrics` command shows hybrid ratio and success rates
 - **JSON Configuration** — Simple `synlogos.json` config file for providers and agents
 - **Programmatic Tool Calling** — LLM writes code that orchestrates multiple tools efficiently
 - **Functional Architecture** — Built with Result monads, immutable state, and pure functions
@@ -288,6 +292,12 @@ src/
 - Simple tasks: ~43% token reduction
 - Complex tasks: Full orchestration power maintained
 - Automatic selection based on task complexity
+
+**🔄 Auto-Compact**
+- OpenCode-style automatic conversation summarization
+- Triggers at 80% of context window (configurable)
+- Keeps last 3 messages + summary when compacting
+- Prevents 64K+ token bloat issues
 
 **📊 Session Metrics**
 - Real-time tracking with `/metrics` command
