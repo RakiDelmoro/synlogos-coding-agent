@@ -166,6 +166,29 @@ You: /tokens
 You: /provider
 ```
 
+### Real-Time Token Usage
+
+Token usage is displayed in real-time as you interact with the agent:
+
+```
+You: What is 2+2?
+
+🤔 Thinking
+The result of 2+2 is 4.
+
+✅ Final Result
+4
+
+Tokens: 286 (↑2,526 ↓160)
+```
+
+The token counter shows:
+- **Total tokens used** in the current session
+- **↑ Prompt tokens** sent to the API  
+- **↓ Completion tokens** received from the API
+
+This updates after each API call, helping you track costs and context window usage in real-time.
+
 ### CLI Options
 
 ```
