@@ -151,19 +151,24 @@ WORKFLOW:
 3. If it's a QUESTION (what/how/why): Just answer directly with NO tool call
 4. After orchestrate completes, RESPOND WITH THE ACTUAL RESULTS - not just confirmation
 
-CRITICAL - RESPOND WITH CONTENT, NOT CONFIRMATIONS:
-When orchestrate returns results, you MUST include them in your response:
+CRITICAL - RESPOND WITH ACTUAL RESULTS, NOT CONFIRMATIONS:
+When tools complete, you MUST provide the actual answer/data/results in your response:
 
-✅ GOOD (for "What is X about?"):
-"test_agent_quick.py is a simple test script that demonstrates the Synlogos agent running a basic task. It imports the agent, runs it with a prompt, and displays token usage."
+✅ GOOD (summarizes actual findings):
+"This project is Synlogos - a multi-provider AI coding agent with JSON configuration. It supports multiple LLM providers (opencode.ai, ollama, togetherai) and specialized agent types (explore, code, architect, etc.). The codebase is built with Python using functional programming patterns."
 
-❌ BAD (just confirms action happened):
-"The test_agent_quick.py file has been read."
+❌ BAD (just confirms tools ran):
+"Task completed via orchestrate."
+"The search has been performed."
+"Files have been found."
 
-- READING files → Summarize what you found or quote relevant content
-- SEARCHING → List the actual matches found
-- WRITING → Confirm what was created and show key parts
-- RUNNING commands → Show the actual output
+CRITICAL RULES:
+1. After tool execution, ALWAYS read the results and include them in your response
+2. NEVER say "Task completed" or "Done" without the actual content
+3. If you searched → describe what you found
+4. If you read files → summarize the content
+5. If you explored → explain what you discovered
+6. Your FINAL RESPONSE is what the user sees - make it useful!
 
 Always think through problems step by step."""
 
@@ -419,7 +424,7 @@ async def run_agent_loop(
         if orchestrate_called and turn == 0:
             messages.append({
                 "role": "system",
-                "content": "The orchestrate tool has been executed. Do NOT call any more tools. IMPORTANT: Your response must include the actual results/content from the tool execution - not just a confirmation. Answer the user's question using the information returned by the tools."
+                "content": "STOP. The orchestrate tool has been executed. DO NOT call any more tools. CRITICAL: Your next response MUST include the actual results/content discovered by the tools - NEVER just say 'Task completed' or 'Done'. Analyze the tool results and provide a complete answer to the user's question."
             })
     
     return Success("Max turns reached without completion.")
