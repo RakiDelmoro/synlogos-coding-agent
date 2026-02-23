@@ -1,10 +1,6 @@
-# Synlogos
-
-> In the beginning was the Code, and the Code was with the AI, and the Code was AI.
+![Synlogos CLI](cli-display.png)
 
 A professional AI coding agent built with functional programming patterns in Python. Synlogos acts as your autonomous coding companion, capable of reading, writing, editing files, executing shell commands, running code, and managing git operations.
-
-![Synlogos CLI](cli-display.png)
 
 ## Features
 
