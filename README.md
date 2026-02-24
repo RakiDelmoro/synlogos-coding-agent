@@ -1,342 +1,322 @@
+# Synlogos
+
+**Local AI coding assistant powered by Ollama**
+
+Synlogos is a privacy-focused, local AI coding agent that runs entirely on your machine. No cloud providers, no API keys, no data leaving your computer. Just you, your code, and your locally-running AI models.
+
 ![Synlogos CLI](cli-display.png)
 
-A professional multi-provider AI coding agent built with functional programming patterns in Python. Synlogos acts as your autonomous coding companion, supporting multiple LLM providers and specialized agent types for different coding tasks.
+## 🌟 Key Features
 
-## Features
-
-- **Multi-Provider Support** — Works with opencode.ai (free), TogetherAI, Ollama (local), Groq, and any OpenAI-compatible API
-- **Specialized Agent Types** — Different agents optimized for specific tasks:
+- **100% Local** — All AI models run locally via Ollama. Your code never leaves your machine.
+- **Privacy-First** — No cloud dependencies, no API keys, no tracking. Complete data sovereignty.
+- **Personalized AI** — Creates a custom skill/persona based on your preferences using multi-phase AI questioning
+- **Specialized Agents** — Different agents optimized for specific tasks:
   - `explore` — Fast file and codebase exploration
   - `code` — Primary coding agent for complex tasks
   - `architect` — System design and architecture decisions
   - `plan` — Task planning and analysis
-  - `grep` — Search specialist
-  - `summarize` — Code and diff summarization
-  - `web_search` — Web information retrieval
-  - `memory` — Memory management agent
+  - `test` — Testing specialist
+  - `review` — Code review agent
+  - `docs` — Documentation writer
+- **Smart Agent Selection** — Automatically selects appropriate agents based on your needs
 - **Hybrid Tool Calling** — Intelligent routing between direct tools and programmatic orchestration
-  - Simple tasks use direct tools (faster, fewer tokens)
-  - Complex tasks use orchestration (parallel execution, batch operations)
-- **Auto-Compact** — NEW: Automatically summarizes conversation at 80% of context limit (OpenCode-style)
-  - Prevents token bloat and context window overflow
-  - Keeps only recent messages + summary
+- **Auto-Compact** — Automatically summarizes conversation at 80% of context limit
 - **Session Metrics** — Real-time tracking of tool usage and efficiency
-  - `/metrics` command shows hybrid ratio and success rates
-- **JSON Configuration** — Simple `synlogos.json` config file for providers and agents
-- **Programmatic Tool Calling** — LLM writes code that orchestrates multiple tools efficiently
-- **Functional Architecture** — Built with Result monads, immutable state, and pure functions
-- **Rich Tool Set**:
-  - File operations: read, write, edit
-  - Shell command execution
-  - Code execution in sandboxed environment
-  - File search: glob patterns, grep/regex search
-  - Git integration: status, diff, log, commit
 - **Beautiful CLI** — Rich terminal output with markdown rendering
-- **Safe Execution** — Local sandbox for isolated code execution
 
-### Hybrid Tool Calling
+## 🚀 Quick Start
 
-Synlogos now uses an intelligent **hybrid approach** that automatically chooses the best execution method:
+### Prerequisites
 
-**Direct Tools** (Single operations):
-- `read_file`, `write_file`, `edit_file` — File operations
-- `shell` — Shell command execution
-- `execute_code` — Temporary code execution
-- `glob`, `grep` — File and content search
-- `git_*` — Git operations
+1. **Install Ollama**
+   ```bash
+   # macOS/Linux
+   curl -fsSL https://ollama.com/install.sh | sh
+   
+   # Or download from https://ollama.com
+   ```
 
-**Orchestration** (Complex/multi-step):
-- Write Python code that calls multiple tools
-- Parallel execution via `asyncio.gather()`
-- Batch operations and complex logic
-- Process intermediate results in code
+2. **Start Ollama**
+   ```bash
+   ollama serve
+   ```
 
-**Benefits:**
-- ✅ Simple tasks use fewer tokens (~43% reduction)
-- ✅ Complex tasks still get full orchestration power
-- ✅ Real-time metrics show which mode is used
+3. **Pull a model** (start with qwen3:8b for best balance)
+   ```bash
+   ollama pull qwen3:8b
+   ```
 
-## Installation
+### Installation
 
 ```bash
 # Clone the repository
 git clone https://github.com/RakiDelmoro/synlogos-coding-agent.git
 cd synlogos-coding-agent
 
-# Install with pip
+# Install
 pip install -e .
-
-# Or install with development dependencies
-pip install -e ".[dev]"
 ```
 
-## Configuration
-
-Synlogos uses `synlogos.json` for configuration. Create this file in your project root:
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "theme": "matrix",
-  "instructions": ["SOUL.md"],
-  "provider": {
-    "opencode": {
-      "npm": "@ai-sdk/openai-compatible",
-      "options": {
-        "baseURL": "https://opencode.ai/zen/v1",
-        "apiKey": "your-api-key"
-      },
-      "models": {
-        "glm-5-free": { "model": "glm-5-free" },
-        "kimi-k2-free": { "model": "kimi-k2-free" }
-      }
-    },
-    "ollama": {
-      "npm": "@ai-sdk/openai-compatible",
-      "options": {
-        "baseURL": "http://localhost:11434/v1"
-      },
-      "models": {
-        "qwen3:8b": { "model": "qwen3:8b" }
-      }
-    },
-    "togetherai": {
-      "npm": "@ai-sdk/openai-compatible",
-      "options": {
-        "baseURL": "https://api.together.xyz/v1",
-        "apiKey": "your-api-key"
-      },
-      "models": {
-        "moonshotai/Kimi-K2.5": {}
-      }
-    }
-  },
-  "model": "togetherai/moonshotai/Kimi-K2.5",
-  "agent": {
-    "explore": {
-      "model": "ollama/qwen3:8b",
-      "instructions": "You are a fast file and codebase explorer..."
-    },
-    "code": {
-      "model": "togetherai/moonshotai/Kimi-K2.5",
-      "instructions": "You are the primary coding agent..."
-    }
-  }
-}
-```
-
-### Provider Setup
-
-**Free Options:**
-- **opencode.ai** — Get free API key at https://opencode.ai (no signup required)
-- **Ollama** — Run locally: `ollama pull qwen3:8b && ollama serve`
-
-**Commercial Options:**
-- **TogetherAI** — Get API key at https://api.together.xyz/settings/api-keys
-- **Groq** — Get free tier API key at https://console.groq.com/keys
-
-## Quick Start
-
-1. Create your `synlogos.json` config file (see example above)
-
-2. Run Synlogos:
+### First Run
 
 ```bash
-# Default agent
+# Run setup to create your personalized AI assistant
+synlogos --setup
+```
+
+This will:
+1. Ask what you want your AI assistant to be (mentor, fast coder, reviewer, etc.)
+2. Let you choose from available Ollama models
+3. Generate a personalized `skills.md` (your AI's persona)
+4. Create `synlogos.json` with optimized agent configuration
+
+### Usage
+
+```bash
+# Start your AI assistant
 synlogos
 
-# Or use a specific agent type
+# Use a specific agent type
 synlogos --agent explore
 synlogos --agent code
 synlogos --agent architect
 
-# See available agents
-synlogos --list-agents
+# Check Ollama status
+synlogos --check-ollama
 
-# See configured providers
-synlogos --list-providers
+# View your current skill
+synlogos --skill
+
+# Regenerate your skill/persona
+synlogos --reskill
 ```
 
-## Usage
+## 💬 Interactive Usage
 
-Once started, you'll see an interactive prompt. Just describe what you want to do:
+Once started, you'll see an interactive prompt:
 
 ```
-You: Create a Python function that calculates fibonacci numbers and write it to fib.py
+You: Create a Python function that calculates fibonacci numbers
 
 You: Read all the TypeScript files in src/ and summarize their purpose
 
-You: Run the tests and fix any failing tests
+You: Review this code for potential bugs
 
-You: Commit the changes with a descriptive message
+You: Help me refactor this class into smaller functions
 ```
 
 Type `exit` or `quit` to end the session.
 
 ### Slash Commands
 
-While the agent is running, you can use slash commands for quick actions:
+While the agent is running, use slash commands:
 
 ```
 /help              Show available slash commands
 /agents            List all available agent types
-/provider          Show current provider and model
-/providers         List all configured providers
+/provider          Show current model
+/providers         Check Ollama status and available models
 /tokens            Show current token usage
-/metrics           Show session tool usage metrics (NEW)
+/metrics           Show session tool usage metrics
 /config            Show current configuration
 clear              Clear the screen
-/exit              Exit the session (same as 'exit')
+/exit              Exit the session
 ```
 
-Example:
+## 🎯 How It Works
+
+### TinySkills Persona Generation
+
+Synlogos uses a **multi-phase questioning technique** (inspired by TinySkills) to generate your personalized AI assistant:
+
+**Phase 1: Core Identity** (3 questions)
+- "Who are you?" → Defines identity and personality
+- "How do you approach tasks?" → Establishes methodology
+- "How do you communicate?" → Sets tone and style
+
+**Phase 2: Standards & Expectations** (2 questions)
+- "What are your coding standards?"
+- "What do you expect from the user?"
+
+**Phase 3: Principles** (1 question)
+- "What are your key principles?"
+
+This creates a rich `skills.md` file that defines your AI's persona.
+
+### Smart Agent Selection
+
+Based on your description, Synlogos automatically selects appropriate agents:
+
+| If you want... | You get these agents |
+|----------------|---------------------|
+| A mentor/teacher | explore, code, architect, **docs** |
+| Fast prototyping | explore, code, **test**, **grep** |
+| Code review | **review**, **security**, **test**, **grep** |
+| Pair programming | explore, **plan**, **architect**, code |
+| Documentation | **docs**, **summarize**, explore |
+| Testing/debug | **test**, explore, **review**, code |
+
+### Available Models
+
+| Model | Best For |
+|-------|----------|
+| `qwen3:8b` | Fast, good for most tasks (default) |
+| `qwen3:14b` | Better quality, slower |
+| `qwen3:32b` | Best quality, slowest |
+| `llama3.1:8b` | Alternative option |
+| `deepseek-coder:6.7b` | Coding focused |
+| `deepseek-coder:33b` | Best for complex coding |
+
+### Hybrid Tool Calling
+
+Synlogos intelligently chooses between:
+
+**Direct Tools** — Simple operations (43% fewer tokens)
+- `read_file`, `write_file`, `edit_file`
+- `shell` commands
+- `glob`, `grep` search
+
+**Orchestration** — Complex multi-step tasks
+- Write Python code that calls multiple tools
+- Parallel execution via `asyncio.gather()`
+- Batch operations and complex logic
+
+## 🛠️ Configuration
+
+Synlogos creates `synlogos.json` automatically during setup. Example:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "theme": "matrix",
+  "instructions": ["skills.md"],
+  "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "http://localhost:11434/v1"
+      },
+      "models": {
+        "qwen3:8b": {"model": "qwen3:8b"},
+        "qwen3:14b": {"model": "qwen3:14b"},
+        "deepseek-coder:33b": {"model": "deepseek-coder:33b"}
+      }
+    }
+  },
+  "model": "ollama/qwen3:8b",
+  "agent": {
+    "explore": {
+      "model": "ollama/qwen3:8b",
+      "instructions": "You are a fast file and codebase explorer..."
+    },
+    "code": {
+      "model": "ollama/deepseek-coder:33b",
+      "instructions": "You are the primary coding agent..."
+    }
+  }
+}
 ```
-You: /help
-You: /agents
-You: /tokens
-You: /metrics
-You: /provider
+
+### skills.md Example
+
+Your personalized AI persona:
+
+```markdown
+# A senior engineer who mentors me through complex refactors
+
+## Who I Am
+I am your mentor and teacher. I don't just solve problems—I help you understand them...
+
+## How I Work
+I start by understanding your current knowledge level. I break complex problems into digestible pieces...
+
+## How I Communicate
+I communicate clearly and patiently. I use analogies and examples...
+
+## My Standards
+I value understanding over speed. I won't just hand you code...
+
+## What I Expect From You
+Tell me what you've already tried. Ask 'why' when you don't understand...
+
+## My Reminders to You
+Every senior engineer was once completely lost. If you can't explain it simply, you don't understand it yet...
 ```
 
-**Session Metrics (`/metrics`):**
-```
-============================================================
-SESSION METRICS
-============================================================
-Session duration: 0:00:05.123456
-Total prompts: 5
-Direct tool calls: 7
-Orchestration calls: 2
-
-Tool Usage Breakdown:
-------------------------------------------------------------
-  write_file             3 calls  100.0% success
-  read_file              2 calls  100.0% success
-  orchestrate            2 calls  100.0% success
-------------------------------------------------------------
-Hybrid ratio: 7:2 (direct:orchestrate)
-============================================================
-```
-
-### Real-Time Token Usage
-
-Token usage is displayed in real-time as you interact with the agent:
-
-```
-You: What is 2+2?
-
-🤔 Thinking
-The result of 2+2 is 4.
-
-✅ Final Result
-4
-
-Tokens: 286 (↑2,526 ↓160)
-```
-
-The token counter shows:
-- **Total tokens used** in the current session
-- **↑ Prompt tokens** sent to the API  
-- **↓ Completion tokens** received from the API
-
-This updates after each API call, helping you track costs and context window usage in real-time.
-
-### CLI Options
-
-```
-synlogos [options]
-
-Options:
-  --agent TYPE          Agent type: explore, code, architect, plan, grep, summarize, web_search, memory
-  --list-agents         Show available agents and exit
-  --list-providers      Show configured providers and exit
-  --config PATH         Path to synlogos.json config file
-  --max-turns N         Maximum conversation turns (default: 30)
-  -h, --help            Show help message
-```
-
-## Architecture
-
-Synlogos is built with functional programming principles:
-
-- **Result Monads** — Explicit error handling using the `returns` library
-- **Immutable State** — State is threaded through pure functions, never mutated
-- **Multi-Provider Design** — Unified OpenAI-compatible API wrapper for all providers
-- **JSON-Based Config** — Simple declarative configuration
-- **Specialized Agents** — Each agent type has optimized models and instructions
+## 📁 Project Structure
 
 ```
 src/
 ├── agent/              # Agent implementations
-│   └── synlogos.py     # Main Synlogos agent with multi-provider support
-├── providers/          # LLM providers (unified interface)
-│   ├── unified_provider.py  # Universal OpenAI-compatible provider
-│   ├── groq_provider.py     # Groq provider
-│   └── ollama_provider.py   # Ollama provider
-├── config.py           # JSON config loader
+│   └── synlogos.py     # Main Synlogos agent
+├── providers/          # LLM providers (Ollama-only)
+│   └── unified_provider.py
+├── skills.py           # Skill/persona generation
 ├── sandbox/            # Code execution sandbox
 ├── tools/              # Tool implementations
-│   ├── functional_tools.py  # File ops, shell, code exec
-│   ├── advanced_tools.py    # Glob, grep
-│   └── git_tools.py         # Git operations
+│   ├── functional_tools.py
+│   ├── advanced_tools.py
+│   └── git_tools.py
+├── config.py           # Configuration loader
 ├── types.py            # Type definitions
 └── cli.py              # CLI entry point
 ```
 
-## Recent Improvements
+## 📊 Session Metrics
 
-### v2.0 - Hybrid Tool Calling & Session Metrics
+Track your session efficiency:
 
-**🎯 Hybrid Mode**
-- Intelligent routing between direct tools and orchestration
-- Simple tasks: ~43% token reduction
-- Complex tasks: Full orchestration power maintained
-- Automatic selection based on task complexity
+```
+============================================================
+SESSION METRICS
+============================================================
+Session duration: 0:05:23
+Total prompts: 12
+Direct tool calls: 15
+Orchestration calls: 3
 
-**🔄 Auto-Compact**
-- OpenCode-style automatic conversation summarization
-- Triggers at 2K tokens (50% of 4K context)
-- Keeps last 3 messages + summary when compacting
-- Prevents 64K+ token bloat issues
-- System prompt reduced by 85% (~2K tokens saved per call)
+Tool Usage Breakdown:
+------------------------------------------------------------
+  write_file             5 calls  100.0% success
+  read_file              8 calls  100.0% success
+  orchestrate            3 calls  100.0% success
+------------------------------------------------------------
+Hybrid ratio: 15:3 (direct:orchestrate)
+============================================================
+```
 
-**📊 Session Metrics**
-- Real-time tracking with `/metrics` command
-- Tool usage breakdown (direct vs orchestrate)
-- Success rates per tool
-- Session efficiency analysis
+## 🔄 Recent Updates
 
-**✨ Quality Improvements**
-- Simplified system prompts (70% shorter)
-- Better multi-line string handling in code
-- Improved JSON parsing for tool arguments
-- Enhanced error handling
+### Ollama-Only Edition
+- Removed all cloud providers (TogetherAI, OpenCode, Groq)
+- Added TinySkills multi-phase persona generation
+- Automatic model pulling during setup
+- Enhanced Ollama status checking
+- Privacy-first: 100% local execution
 
-## How It Works
+### v2.0 Features
+- Hybrid tool calling with intelligent routing
+- Auto-compact conversation management
+- Session metrics tracking
+- Multi-agent support with specialized roles
+- Rich CLI with beautiful formatting
 
-1. **Configuration** — Load `synlogos.json` to determine provider and model
-2. **Agent Selection** — Choose agent type (each has its own model and instructions)
-3. **Prompt Processing** — User prompt sent to selected LLM
-4. **Tool Selection** — LLM chooses: direct tool call OR orchestration
-5. **Execution** — Tools execute operations (direct) or code runs in sandbox (orchestrate)
-6. **Results** — Final results returned with metrics tracking
-
-## Requirements
+## ⚙️ Requirements
 
 - Python 3.11+
-- API key for your chosen provider (or run Ollama locally)
-- Docker (optional, for sandboxed code execution)
+- Ollama installed and running
+- (Optional) Docker for enhanced sandboxing
 
-## Dependencies
+## 📦 Dependencies
 
-- `openai` — OpenAI SDK (for OpenAI-compatible APIs)
+- `openai` — OpenAI-compatible SDK for Ollama
 - `pydantic` — Data validation
 - `returns` — Result monads for functional error handling
 - `rich` — Beautiful terminal output
 - `aiofiles` — Async file operations
-- `httpx` — HTTP client
 
-## Development
+## 🧪 Development
 
 ```bash
 # Install dev dependencies
@@ -352,39 +332,18 @@ mypy src/
 pytest
 ```
 
-## Migrating from v1
-
-If you were using Synlogos v1 (TogetherAI-only):
-
-1. Update your environment variables:
-   - Remove: `TOGETHER_API_KEY`
-   - Add: Create `synlogos.json` config file
-
-2. Update imports (if using programmatically):
-   ```python
-   # Old
-   from src.types import AgentConfig
-   config = AgentConfig(model="meta-llama/...")
-   
-   # New
-   from src.agent.synlogos import Synlogos
-   agent = Synlogos(agent_type="code")
-   ```
-
-## License
+## 📜 License
 
 MIT License — see [LICENSE](LICENSE) for details.
 
-## Contributing
+## 🙏 Acknowledgments
 
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## Acknowledgments
-
-Built with love using:
-- [OpenCode](https://opencode.ai) — Free AI model access
-- [TogetherAI](https://together.ai) — Fast, affordable LLM inference
+Built with:
 - [Ollama](https://ollama.ai) — Local LLM inference
-- [Groq](https://groq.com) — Fast inference
 - [Rich](https://github.com/Textualize/rich) — Beautiful terminal formatting
 - [Returns](https://github.com/dry-python/returns) — Functional programming in Python
+- Inspired by [TinySkills](https://github.com/tinyfish-io/tinyfish-cookbook/tree/main/tinyskills) — Multi-source synthesis technique
+
+---
+
+**Your code. Your models. Your privacy.**
