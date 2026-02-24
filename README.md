@@ -29,9 +29,16 @@ synlogos
 
 **Setup command** (`synlogos --setup`) will:
 - Detect available Ollama models
-- Let you choose which model to use
-- Automatically pull the model if not installed
+- Show recommended models (qwen3, deepseek-coder, llama3.1, etc.)
+- **Let you type ANY model name you want** (e.g., `mistral:7b`, `codellama:13b`)
+- Automatically pull and install the model
 - Configure Synlogos to use it
+
+**Use any model from [ollama.com/library](https://ollama.com/library):**
+```bash
+synlogos --setup
+# Then type: mistral:7b, codellama:13b, llama2:13b, etc.
+```
 
 That's it. No manual config files, no API keys.
 

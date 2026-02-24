@@ -241,13 +241,16 @@ def run_model_onboarding() -> Result[str, str]:
     ]
 
     if available_models:
-        console.print("[bold]Available models:[/bold]")
+        console.print("[bold]Your installed models:[/bold]")
         for model in available_models:
             console.print(f"  [green]•[/] {model}")
         console.print()
 
-    # Ask user to select or pull a model
-    console.print("[bold cyan]Select a model to use:[/bold cyan]")
+    # Ask user to select or type any model
+    console.print("[bold cyan]Choose your AI model:[/bold cyan]")
+    console.print(
+        "[dim]You can pick from recommended models or type any model name you want.[/dim]"
+    )
     console.print()
 
     for i, (model, desc) in enumerate(RECOMMENDED_MODELS, 1):
@@ -255,21 +258,23 @@ def run_model_onboarding() -> Result[str, str]:
         console.print(f"  {i}. {model} - {desc} {installed}[/dim]")
 
     console.print()
-    console.print("  0. [dim]Use custom model name[/dim]")
+    console.print("  Or type any model name (e.g., 'codellama:7b', 'mistral:latest')")
     console.print()
 
-    from rich.prompt import IntPrompt
+    from rich.prompt import Prompt
 
-    choice = IntPrompt.ask("Enter number", default=1)
+    choice = Prompt.ask("Enter number or model name", default="1")
 
-    if choice == 0:
-        from rich.prompt import Prompt
-
-        model_name = Prompt.ask("Enter model name (e.g., 'mistral:7b')")
-    elif 1 <= choice <= len(RECOMMENDED_MODELS):
-        model_name = RECOMMENDED_MODELS[choice - 1][0]
-    else:
-        model_name = RECOMMENDED_MODELS[0][0]
+    # Check if input is a number (selection) or model name
+    try:
+        choice_num = int(choice)
+        if 1 <= choice_num <= len(RECOMMENDED_MODELS):
+            model_name = RECOMMENDED_MODELS[choice_num - 1][0]
+        else:
+            model_name = RECOMMENDED_MODELS[0][0]
+    except ValueError:
+        # User typed a model name directly
+        model_name = choice.strip()
 
     # Check if model needs to be pulled
     if model_name not in available_models:
