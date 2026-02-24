@@ -26,13 +26,10 @@ from src.metrics import (
     get_session_metrics,
 )
 from src.skills import (
-    run_onboarding,
     ensure_setup,
-    regenerate_setup,
     display_current_skill,
-    skills_exists,
-    config_exists,
-    is_setup_complete,
+    show_ollama_status,
+    check_ollama,
 )
 
 
@@ -293,62 +290,39 @@ def show_ollama_status():
 
 
 def parse_args():
-    """Parse command line arguments"""
+    """Parse command line arguments - minimal and simple"""
     parser = argparse.ArgumentParser(
-        description="Synlogos - Local AI coding assistant powered by Ollama",
+        description="Synlogos - Local AI coding assistant",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Prerequisites:
-  - Ollama installed: https://ollama.com
-  - Ollama running: ollama serve
-  - Models pulled: ollama pull qwen3:8b
-
-Setup (required before first use):
-  synlogos --setup                 # Create your personalized AI assistant
-
-Examples:
-  synlogos                          # Run with default agent
-  synlogos --agent code             # Use the code agent
-  synlogos --agent explore          # Use the explore agent
-  synlogos --agent architect        # Use the architect agent
-  synlogos --list-agents           # Show available agents
-  synlogos --skill                 # Show current skill configuration
-  synlogos --reskill               # Regenerate your skill/persona
+Quick Start:
+  synlogos                          # Start the assistant
+  synlogos --agent explore          # Use explore mode
+  synlogos --check-ollama          # Check Ollama status
+  
+That's it. No setup needed - it just works.
         """,
     )
 
-    parser.add_argument(
-        "--agent", type=str, help="Agent type to use (explore, code, architect, etc.)"
-    )
+    parser.add_argument("--agent", type=str, help="Agent type: explore, code, test, review")
+
+    parser.add_argument("--list-agents", action="store_true", help="List available agents")
+
+    parser.add_argument("--check-ollama", action="store_true", help="Check if Ollama is running")
+
+    parser.add_argument("--skill", action="store_true", help="Show current skill")
+
+    parser.add_argument("--reset", action="store_true", help="Reset to default configuration")
 
     parser.add_argument(
-        "--list-agents", action="store_true", help="List available agent types and exit"
+        "--max-turns", type=int, default=30, help="Max conversation turns (default: 30)"
     )
 
-    parser.add_argument(
-        "--check-ollama", action="store_true", help="Check if Ollama is running and exit"
-    )
-
-    parser.add_argument("--config", type=str, help="Path to synlogos.json config file")
-    parser.add_argument(
-        "--max-turns", type=int, default=30, help="Maximum conversation turns (default: 30)"
-    )
-
-    parser.add_argument(
-        "--setup", action="store_true", help="Run initial setup to configure your AI assistant"
-    )
-
-    parser.add_argument("--skill", action="store_true", help="Display current skill configuration")
-    parser.add_argument(
-        "--reskill",
-        action="store_true",
-        help="Regenerate skills and configuration (alias for --setup)",
-    )
     return parser.parse_args()
 
 
 async def run_async():
-    """Main run loop"""
+    """Main run loop - simple and auto-configuring"""
     args = parse_args()
 
     # Handle info-only commands
@@ -364,53 +338,17 @@ async def run_async():
         display_current_skill()
         return 0
 
-    if args.setup:
-        result = run_onboarding()
-        if isinstance(result, Success):
-            console.print(
-                "\n[green]✓ Setup complete! You can now run `synlogos` to start using your AI assistant.[/green]"
-            )
-            return 0
-        else:
-            console.print(f"\n[red]Setup failed: {result.failure()}[/red]")
-            return 1
+    if args.reset:
+        from src.skills import reset_to_defaults
 
-    if args.reskill:
-        result = regenerate_setup()
-        if isinstance(result, Success):
-            console.print("\n[green]✓ Skills regenerated successfully![/green]")
-            return 0
-        else:
-            console.print(f"\n[red]Failed to regenerate: {result.failure()}[/red]")
-            return 1
+        result = reset_to_defaults()
+        return 0 if isinstance(result, Success) else 1
 
-    # Check if setup is needed - BLOCK usage until setup is complete
-    if not is_setup_complete():
-        console.print()
-        console.print(
-            Panel(
-                "[bold red]⚠️  Setup Required[/bold red]\n\n"
-                "Before you can use Synlogos, you need to set up your AI assistant.\n"
-                "This creates your personalized skill/persona and configuration.",
-                title="[bold]Setup Required[/bold]",
-                border_style="red",
-            )
-        )
-        console.print()
-        console.print("[dim]Run one of these commands to get started:[/dim]")
-        console.print("  [green]synlogos --setup[/green]     # Interactive setup")
-        console.print("  [green]synlogos --help[/green]      # See all options")
-        console.print()
-
-        # Run setup automatically
-        result = run_onboarding()
-        if isinstance(result, Failure):
-            console.print(f"\n[red]Setup failed: {result.failure()}[/red]")
-            console.print("\n[yellow]Synlogos cannot start without a configured persona.[/yellow]")
-            return 1
-
-        console.print("\n[green]✓ Setup complete! Starting your AI assistant...[/green]")
-        console.print()
+    # Auto-setup: create default files silently
+    setup_result = ensure_setup()
+    if isinstance(setup_result, Failure):
+        console.print(f"[red]Setup error: {setup_result.failure()}[/]")
+        return 1
 
     # Load configuration
     config_result = get_cached_config()
