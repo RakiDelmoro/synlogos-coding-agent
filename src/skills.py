@@ -205,7 +205,7 @@ def run_model_onboarding() -> Result[str, str]:
     console.print()
     console.print(
         Panel.fit(
-            "[bold green]Welcome to Synlogos![/bold green]\nLet's set up your AI coding assistant.",
+            "[bold green]Welcome to Synlogos![/bold green]\nChoose your AI model to get started.",
             border_style="green",
         )
     )
@@ -218,7 +218,7 @@ def run_model_onboarding() -> Result[str, str]:
                 "[red]❌ Ollama is not running[/red]\n\n"
                 "Please start Ollama first:\n"
                 "  [dim]ollama serve[/dim]",
-                title="Setup Error",
+                title="Setup Required",
                 border_style="red",
             )
         )

@@ -20,24 +20,60 @@ git clone https://github.com/RakiDelmoro/synlogos-coding-agent.git
 cd synlogos-coding-agent
 pip install -e .
 
-# 4. Run setup (selects/installs your model)
-synlogos --setup
-
-# 5. Start coding!
+# 4. Run Synlogos - it will ask you to select a model on first run
 synlogos
 ```
 
-**Setup command** (`synlogos --setup`) will:
-- Detect available Ollama models
-- Show recommended models (qwen3, deepseek-coder, llama3.1, etc.)
-- **Let you type ANY model name you want** (e.g., `mistral:7b`, `codellama:13b`)
-- Automatically pull and install the model
-- Configure Synlogos to use it
+**On first run, Synlogos will:**
+1. Detect available Ollama models
+2. Show recommended models (qwen3, deepseek-coder, llama3.1, etc.)
+3. **Let you type ANY model name you want** (e.g., `mistral:7b`, `codellama:13b`)
+4. Automatically pull and install the model in the background
+5. Start the assistant
+
+**Example first-run experience:**
+```
+$ synlogos
+
+╭────────── First Time Setup ──────────╮
+│                                      │
+│  Welcome to Synlogos!                │
+│                                      │
+│  Before we start, select an AI model │
+╰──────────────────────────────────────╯
+
+✓ Ollama is running
+
+Your installed models:
+  • qwen3:8b
+
+Choose your AI model:
+  1. qwen3:8b - Fast & good (Recommended)
+  2. qwen3:14b - Better quality
+  3. deepseek-coder:6.7b - Code-focused
+  Or type any model name: codellama:13b
+
+Enter number or model name: 2
+
+Pulling qwen3:14b...
+[████████░░] Downloading...
+
+✓ Setup complete! Starting Synlogos...
+
+You: _
+```
 
 **Use any model from [ollama.com/library](https://ollama.com/library):**
+- `qwen3:8b`, `qwen3:14b`, `qwen3:32b` (recommended)
+- `deepseek-coder:6.7b`, `deepseek-coder:33b` (code-focused)
+- `codellama:7b`, `codellama:13b` (code completion)
+- `mistral:7b`, `mistral:latest` (general purpose)
+- `llama3.1:8b`, `llama2:13b` (alternative)
+- And 100+ more from the Ollama library
+
+**Change model anytime:**
 ```bash
-synlogos --setup
-# Then type: mistral:7b, codellama:13b, llama2:13b, etc.
+synlogos --setup  # Re-run setup to change model
 ```
 
 That's it. No manual config files, no API keys.
@@ -94,15 +130,19 @@ A coding assistant that:
 
 ## 🚀 Usage
 
-**First time?** Run setup to select your model:
-```bash
-synlogos --setup
-```
-
-Then just run `synlogos` and start chatting:
+Just run `synlogos` and start coding:
 
 ```bash
 $ synlogos
+
+╭──── First Time Setup ────╮
+│  Welcome! Select model:  │
+│  1. qwen3:8b (default)   │
+│  2. qwen3:14b            │
+│  Or type: codellama:7b   │
+╰──────────────────────────╯
+
+✓ Setup complete!
 
 You: Create a Python function that reverses a string
 You: Find all files that import requests
@@ -111,7 +151,8 @@ You: Refactor this class to use dataclasses
 ```
 
 **CLI commands:**
-- `synlogos --setup` - Select/change model
+- `synlogos` - Start (auto-setup on first run)
+- `synlogos --setup` - Change model
 - `synlogos --agent explore` - Use specific agent
 - `synlogos --check-ollama` - Check Ollama status
 

@@ -368,11 +368,50 @@ async def run_async():
             console.print(f"\n[red]Setup failed: {result.failure()}[/red]")
             return 1
 
-    # Auto-setup: create default files silently
-    setup_result = ensure_setup()
-    if isinstance(setup_result, Failure):
-        console.print(f"[red]Setup error: {setup_result.failure()}[/]")
-        return 1
+    # Check if model is configured - if not, force setup
+    from src.skills import config_exists, get_config_path
+
+    config_path = get_config_path()
+    if not config_path.exists():
+        console.print()
+        console.print(
+            Panel(
+                "[bold green]Welcome to Synlogos![/bold green]\n\n"
+                "Before we start, you need to select an AI model.\n"
+                "Don't worry - this will only take a moment.",
+                title="First Time Setup",
+                border_style="green",
+            )
+        )
+        console.print()
+
+        result = run_model_onboarding()
+        if isinstance(result, Failure):
+            console.print(f"\n[red]Setup failed: {result.failure()}[/red]")
+            return 1
+
+        console.print("\n[green]✓ Setup complete! Starting Synlogos...[/green]")
+        console.print()
+    else:
+        # Check if config has a model set
+        try:
+            with open(config_path, "r") as f:
+                cfg = json.load(f)
+            if cfg.get("model") == "ollama/qwen3:8b" and not args.agent:
+                # Default config, ask user to confirm
+                console.print()
+                console.print(
+                    Panel(
+                        "[yellow]Using default model: qwen3:8b[/yellow]\n\n"
+                        "Want to use a different model? Run:\n"
+                        "  [cyan]synlogos --setup[/cyan]",
+                        border_style="yellow",
+                    )
+                )
+                console.print()
+        except Exception:
+            # Config exists but can't read it, continue anyway
+            pass
 
     # Load configuration
     config_result = get_cached_config()
