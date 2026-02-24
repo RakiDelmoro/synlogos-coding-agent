@@ -154,6 +154,164 @@ def get_skill_instructions() -> str:
     return DEFAULT_SKILL
 
 
+def pull_ollama_model(model_name: str) -> Result[bool, str]:
+    """Pull a model from Ollama"""
+    import urllib.request
+    import time
+
+    console.print(f"[dim]Pulling {model_name}...[/dim]")
+
+    try:
+        req = urllib.request.Request(
+            f"http://{OLLAMA_HOST}/api/pull",
+            data=json.dumps({"name": model_name}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+
+        # Stream the response to show progress
+        with urllib.request.urlopen(req, timeout=600) as response:
+            # Read line by line for streaming updates
+            buffer = b""
+            while True:
+                chunk = response.read(1)
+                if not chunk:
+                    break
+                buffer += chunk
+                if b"\n" in buffer:
+                    lines = buffer.split(b"\n")
+                    for line in lines[:-1]:
+                        if line:
+                            try:
+                                data = json.loads(line.decode())
+                                status = data.get("status", "")
+                                if "completed" in status:
+                                    console.print(
+                                        f"[green]✓ {model_name} pulled successfully[/green]"
+                                    )
+                                    return Success(True)
+                            except:
+                                pass
+                    buffer = lines[-1]
+
+            console.print(f"[green]✓ {model_name} pulled successfully[/green]")
+            return Success(True)
+
+    except Exception as e:
+        return Failure(f"Failed to pull {model_name}: {e}")
+
+
+def run_model_onboarding() -> Result[str, str]:
+    """Interactive model selection and setup"""
+    console.print()
+    console.print(
+        Panel.fit(
+            "[bold green]Welcome to Synlogos![/bold green]\nLet's set up your AI coding assistant.",
+            border_style="green",
+        )
+    )
+    console.print()
+
+    # Check if Ollama is running
+    if not check_ollama():
+        console.print(
+            Panel(
+                "[red]❌ Ollama is not running[/red]\n\n"
+                "Please start Ollama first:\n"
+                "  [dim]ollama serve[/dim]",
+                title="Setup Error",
+                border_style="red",
+            )
+        )
+        return Failure("Ollama not running")
+
+    console.print("[green]✓ Ollama is running[/green]")
+    console.print()
+
+    # Get available models
+    available_models = get_available_models()
+
+    # Recommended models
+    RECOMMENDED_MODELS = [
+        ("qwen3:8b", "Fast & good for most tasks (Recommended)"),
+        ("qwen3:14b", "Better quality, slower"),
+        ("qwen3:32b", "Best quality, slowest"),
+        ("deepseek-coder:6.7b", "Code-focused, fast"),
+        ("deepseek-coder:33b", "Best for complex coding"),
+        ("llama3.1:8b", "Alternative option"),
+    ]
+
+    if available_models:
+        console.print("[bold]Available models:[/bold]")
+        for model in available_models:
+            console.print(f"  [green]•[/] {model}")
+        console.print()
+
+    # Ask user to select or pull a model
+    console.print("[bold cyan]Select a model to use:[/bold cyan]")
+    console.print()
+
+    for i, (model, desc) in enumerate(RECOMMENDED_MODELS, 1):
+        installed = "[green](installed)" if model in available_models else "[dim](not installed)"
+        console.print(f"  {i}. {model} - {desc} {installed}[/dim]")
+
+    console.print()
+    console.print("  0. [dim]Use custom model name[/dim]")
+    console.print()
+
+    from rich.prompt import IntPrompt
+
+    choice = IntPrompt.ask("Enter number", default=1)
+
+    if choice == 0:
+        from rich.prompt import Prompt
+
+        model_name = Prompt.ask("Enter model name (e.g., 'mistral:7b')")
+    elif 1 <= choice <= len(RECOMMENDED_MODELS):
+        model_name = RECOMMENDED_MODELS[choice - 1][0]
+    else:
+        model_name = RECOMMENDED_MODELS[0][0]
+
+    # Check if model needs to be pulled
+    if model_name not in available_models:
+        console.print()
+        console.print(f"[yellow]{model_name} not found. Pulling now...[/yellow]")
+        console.print("[dim]This may take a few minutes depending on your connection.[/dim]")
+
+        result = pull_ollama_model(model_name)
+        if isinstance(result, Failure):
+            console.print(f"[red]Failed to pull model: {result.failure()}[/red]")
+            return Failure(result.failure())
+
+    # Update config with selected model
+    config_path = get_config_path()
+    try:
+        if config_path.exists():
+            with open(config_path, "r") as f:
+                config = json.load(f)
+        else:
+            config = DEFAULT_CONFIG.copy()
+
+        # Update the default model
+        config["model"] = f"ollama/{model_name}"
+
+        # Add model to provider if not exists
+        if model_name not in config["provider"]["ollama"]["models"]:
+            config["provider"]["ollama"]["models"][model_name] = {"model": model_name}
+
+        # Save updated config
+        with open(config_path, "w") as f:
+            json.dump(config, f, indent=2)
+
+        console.print()
+        console.print(f"[green]✓ Setup complete! Using {model_name}[/green]")
+        console.print(f"[dim]You can change this anytime with:[/dim] [cyan]synlogos --setup[/cyan]")
+
+        return Success(model_name)
+
+    except Exception as e:
+        return Failure(f"Failed to update config: {e}")
+
+
 def show_ollama_status():
     """Show Ollama status"""
     import urllib.request

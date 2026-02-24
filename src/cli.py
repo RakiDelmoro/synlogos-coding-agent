@@ -30,6 +30,7 @@ from src.skills import (
     display_current_skill,
     show_ollama_status,
     check_ollama,
+    run_model_onboarding,
 )
 
 
@@ -301,15 +302,16 @@ def show_ollama_status():
 
 
 def parse_args():
-    """Parse command line arguments - minimal and simple"""
+    """Parse command line arguments"""
     parser = argparse.ArgumentParser(
         description="Synlogos - Local AI coding assistant",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Quick Start:
-  synlogos                          # Start the assistant
-  synlogos --agent explore          # Use explore mode
-  synlogos --check-ollama          # Check Ollama status
+  synlogos --setup                   # First-time setup (select model)
+  synlogos                           # Start the assistant
+  synlogos --agent explore           # Use explore mode
+  synlogos --check-ollama           # Check Ollama status
   
 That's it. No setup needed - it just works.
         """,
@@ -324,6 +326,8 @@ That's it. No setup needed - it just works.
     parser.add_argument("--skill", action="store_true", help="Show current skill")
 
     parser.add_argument("--reset", action="store_true", help="Reset to default configuration")
+
+    parser.add_argument("--setup", action="store_true", help="Run setup to select/change model")
 
     parser.add_argument(
         "--max-turns", type=int, default=30, help="Max conversation turns (default: 30)"
@@ -354,6 +358,15 @@ async def run_async():
 
         result = reset_to_defaults()
         return 0 if isinstance(result, Success) else 1
+
+    if args.setup:
+        result = run_model_onboarding()
+        if isinstance(result, Success):
+            console.print("\n[green]✓ Setup complete! Run `synlogos` to start.[/green]")
+            return 0
+        else:
+            console.print(f"\n[red]Setup failed: {result.failure()}[/red]")
+            return 1
 
     # Auto-setup: create default files silently
     setup_result = ensure_setup()

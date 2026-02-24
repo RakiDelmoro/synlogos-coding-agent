@@ -12,19 +12,28 @@ Synlogos turns your local Ollama models into a powerful coding assistant. No con
 # 1. Install Ollama
 curl -fsSL https://ollama.com/install.sh | sh
 
-# 2. Pull a model
-ollama pull qwen3:8b
+# 2. Start Ollama
+ollama serve
 
 # 3. Install Synlogos
 git clone https://github.com/RakiDelmoro/synlogos-coding-agent.git
 cd synlogos-coding-agent
 pip install -e .
 
-# 4. Run it
+# 4. Run setup (selects/installs your model)
+synlogos --setup
+
+# 5. Start coding!
 synlogos
 ```
 
-That's it. No setup, no config files, no API keys.
+**Setup command** (`synlogos --setup`) will:
+- Detect available Ollama models
+- Let you choose which model to use
+- Automatically pull the model if not installed
+- Configure Synlogos to use it
+
+That's it. No manual config files, no API keys.
 
 ## 🐳 Docker Support
 
@@ -78,7 +87,12 @@ A coding assistant that:
 
 ## 🚀 Usage
 
-Just run `synlogos` and start chatting:
+**First time?** Run setup to select your model:
+```bash
+synlogos --setup
+```
+
+Then just run `synlogos` and start chatting:
 
 ```bash
 $ synlogos
@@ -89,18 +103,15 @@ You: Run the tests and tell me what's failing
 You: Refactor this class to use dataclasses
 ```
 
+**CLI commands:**
+- `synlogos --setup` - Select/change model
+- `synlogos --agent explore` - Use specific agent
+- `synlogos --check-ollama` - Check Ollama status
+
 **Slash commands** while running:
 - `/help` - Show all commands
 - `/agents` - List available agent types
 - `/exit` - Quit
-
-**Agent types** (for specific tasks):
-```bash
-synlogos --agent explore    # Fast file exploration
-synlogos --agent code      # Complex coding tasks
-synlogos --agent test      # Testing focus
-synlogos --agent review    # Code review
-```
 
 ## 🛠️ Tools Available
 
