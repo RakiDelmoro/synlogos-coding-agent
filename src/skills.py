@@ -1,4 +1,4 @@
-"""Skills management for Synlogos - AI-powered persona generation using TinySkills technique"""
+"""Skills management for Synlogos - AI-powered persona generation using TinySkills technique (Ollama-only)"""
 
 import json
 import os
@@ -18,7 +18,7 @@ console = Console()
 SKILLS_FILE = Path("skills.md")
 CONFIG_FILE = Path("synlogos.json")
 
-# Opencode agent style template
+# Ollama-only skills template
 SKILLS_TEMPLATE = """# {skill_name}
 
 ## Who I Am
@@ -44,15 +44,17 @@ SKILLS_TEMPLATE = """# {skill_name}
 *This skill was generated based on your preferences. You can regenerate it by running `synlogos --setup`*
 """
 
-# Available models
-AVAILABLE_MODELS = {
-    1: ("togetherai/moonshotai/Kimi-K2.5", "TogetherAI Kimi-K2.5 (Powerful, paid)"),
-    2: ("opencode/glm-5-free", "OpenCode GLM-5 Free (Free tier)"),
-    3: ("opencode/kimi-k2-free", "OpenCode Kimi-K2 Free (Free tier)"),
-    4: ("ollama/qwen3:8b", "Ollama Qwen3 8B (Local, requires Ollama)"),
+# Ollama-only models - no cloud providers
+OLLAMA_MODELS = {
+    1: ("ollama/qwen3:8b", "Qwen3 8B (Fast, good for most tasks)"),
+    2: ("ollama/qwen3:14b", "Qwen3 14B (Better quality, slower)"),
+    3: ("ollama/qwen3:32b", "Qwen3 32B (Best quality, slowest)"),
+    4: ("ollama/llama3.1:8b", "Llama 3.1 8B (Alternative option)"),
+    5: ("ollama/deepseek-coder:6.7b", "DeepSeek Coder 6.7B (Coding focused)"),
+    6: ("ollama/deepseek-coder:33b", "DeepSeek Coder 33B (Best for complex coding)"),
 }
 
-# Agent type definitions
+# All agents use Ollama models
 AGENT_TYPES = {
     "explore": {
         "description": "Fast file and codebase explorer",
@@ -75,31 +77,31 @@ AGENT_TYPES = {
     "plan": {
         "description": "Planning and analysis agent",
         "lightweight": False,
-        "model": "togetherai/moonshotai/Kimi-K2.5",
+        "model": "ollama/qwen3:14b",
         "instructions": "You are a planning agent. Deeply analyze the task and codebase context provided, identify edge cases, dependencies, and risks, then produce a clear ordered step-by-step plan before any code is written.",
     },
     "code": {
         "description": "Primary coding agent",
         "lightweight": False,
-        "model": "togetherai/moonshotai/Kimi-K2.5",
+        "model": "ollama/deepseek-coder:33b",
         "instructions": "You are the primary coding agent. Write, edit, refactor, and debug code with high accuracy. Handle complex multi-file changes, architecture decisions, and difficult bugs.",
     },
     "architect": {
         "description": "Senior software architect",
         "lightweight": False,
-        "model": "togetherai/moonshotai/Kimi-K2.5",
+        "model": "ollama/qwen3:14b",
         "instructions": "You are a senior software architect. Design systems, plan large refactors, choose technologies, and reason about scalability and maintainability.",
     },
     "web_search": {
         "description": "Web search specialist",
         "lightweight": False,
-        "model": "togetherai/moonshotai/Kimi-K2.5",
+        "model": "ollama/qwen3:8b",
         "instructions": "You are a web search specialist. Retrieve accurate, up-to-date information from the web. Summarize results concisely, cite sources, and handle ambiguity carefully.",
     },
     "memory": {
         "description": "Memory management agent",
         "lightweight": False,
-        "model": "togetherai/moonshotai/Kimi-K2.5",
+        "model": "ollama/qwen3:8b",
         "instructions": "You are the memory agent. Your only job is to keep memory.md compact, accurate, and useful.",
     },
     "test": {
@@ -117,7 +119,7 @@ AGENT_TYPES = {
     "security": {
         "description": "Security analyst",
         "lightweight": False,
-        "model": "togetherai/moonshotai/Kimi-K2.5",
+        "model": "ollama/qwen3:14b",
         "instructions": "You are a security analyst. Analyze code for security vulnerabilities and best practices.",
     },
     "docs": {
@@ -141,7 +143,7 @@ class Skill:
     what_i_expect: str
     my_reminders: str
     recommended_agents: list[str] = field(default_factory=list)
-    preferred_model: str = "togetherai/moonshotai/Kimi-K2.5"
+    preferred_model: str = "ollama/qwen3:8b"
 
 
 def get_skills_path() -> Path:
@@ -162,6 +164,17 @@ def config_exists() -> bool:
 
 def is_setup_complete() -> bool:
     return skills_exists() and config_exists()
+
+
+def check_ollama_running() -> bool:
+    """Check if Ollama is running locally"""
+    import urllib.request
+
+    try:
+        urllib.request.urlopen("http://localhost:11434", timeout=2)
+        return True
+    except:
+        return False
 
 
 def parse_skills(content: str) -> Result[Skill, str]:
@@ -223,9 +236,11 @@ def load_skills() -> Result[Skill, str]:
         return Failure(f"Error reading skills file: {e}")
 
 
-def select_model() -> str:
+def select_ollama_model() -> str:
+    """Select Ollama model"""
     console.print()
-    console.print("[bold cyan]Select your preferred model:[/bold cyan]")
+    console.print("[bold cyan]Select your Ollama model:[/bold cyan]")
+    console.print("[dim]Make sure Ollama is running: ollama serve[/dim]")
     console.print()
 
     table = Table(show_header=True, header_style="bold magenta")
@@ -233,11 +248,17 @@ def select_model() -> str:
     table.add_column("Model", style="green")
     table.add_column("Description", style="dim")
 
-    for num, (model_id, description) in AVAILABLE_MODELS.items():
-        table.add_row(str(num), model_id, description)
+    for num, (model_id, description) in OLLAMA_MODELS.items():
+        table.add_row(str(num), model_id.replace("ollama/", ""), description)
 
     console.print(table)
     console.print()
+
+    # Check if Ollama is running
+    if not check_ollama_running():
+        console.print("[yellow]⚠️  Ollama doesn't appear to be running![/yellow]")
+        console.print("[dim]Start it with: ollama serve[/dim]")
+        console.print()
 
     choice = IntPrompt.ask(
         "[bold blue]Enter model number[/bold blue]",
@@ -245,93 +266,73 @@ def select_model() -> str:
         show_default=True,
     )
 
-    if choice in AVAILABLE_MODELS:
-        return AVAILABLE_MODELS[choice][0]
+    if choice in OLLAMA_MODELS:
+        return OLLAMA_MODELS[choice][0]
     else:
         console.print("[yellow]Invalid choice, using default model[/yellow]")
-        return "togetherai/moonshotai/Kimi-K2.5"
+        return "ollama/qwen3:8b"
 
 
-def get_api_key_for_model(model: str) -> str | None:
-    if model.startswith("togetherai"):
-        return os.environ.get("TOGETHER_API_KEY", "")
-    elif model.startswith("opencode"):
-        return os.environ.get("OPENCODE_API_KEY", "")
-    return None
+class OllamaSkillGenerator:
+    """Generate skill using Ollama LLM"""
 
-
-class TinySkillsGenerator:
-    """Generate comprehensive skill using multi-question TinySkills technique"""
-
-    def __init__(self, model: str, api_key: str | None):
-        self.model = model
-        self.api_key = api_key or get_api_key_for_model(model)
+    def __init__(self, model: str):
+        self.model = model.replace("ollama/", "")
         self.responses = {}
 
-    def _get_client(self):
-        """Get OpenAI client for the selected provider"""
-        try:
-            from openai import OpenAI
-        except ImportError:
-            raise ImportError("openai package not installed")
-
-        parts = self.model.split("/")
-        provider = parts[0] if len(parts) >= 1 else "togetherai"
-
-        if provider == "togetherai":
-            base_url = "https://api.together.xyz/v1"
-            api_key = self.api_key or os.environ.get("TOGETHER_API_KEY", "")
-            model_name = (
-                "/".join(parts[1:]) if len(parts) > 1 else "meta-llama/Llama-3.3-70B-Instruct"
-            )
-        elif provider == "opencode":
-            base_url = "https://opencode.ai/zen/v1"
-            api_key = self.api_key or os.environ.get("OPENCODE_API_KEY", "")
-            model_name = parts[1] if len(parts) > 1 else "glm-5-free"
-        else:
-            raise ValueError(f"Unsupported provider: {provider}")
-
-        if not api_key:
-            raise ValueError(f"No API key for {provider}")
-
-        return OpenAI(base_url=base_url, api_key=api_key), model_name
-
     def _ask_question(self, question: str, context: str = "") -> str:
-        """Ask a single question to the LLM"""
-        client, model_name = self._get_client()
+        """Ask Ollama a single question"""
+        import urllib.request
+        import urllib.error
 
         system_prompt = """You are a persona designer for an AI coding assistant.
 Answer the question thoughtfully and concisely (2-4 sentences).
-Be specific, actionable, and authentic to the persona being created.
-Focus on practical behaviors, not generic advice."""
+Be specific, actionable, and authentic. Focus on practical behaviors, not generic advice."""
 
         user_prompt = f"{context}\n\nQuestion: {question}\n\nAnswer concisely in 2-4 sentences:"
 
+        data = json.dumps(
+            {
+                "model": self.model,
+                "prompt": user_prompt,
+                "system": system_prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.7,
+                    "num_predict": 300,
+                },
+            }
+        ).encode()
+
         try:
-            response = client.chat.completions.create(
-                model=model_name,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                temperature=0.7,
-                max_tokens=300,
+            req = urllib.request.Request(
+                "http://localhost:11434/api/generate",
+                data=data,
+                headers={"Content-Type": "application/json"},
             )
-            return response.choices[0].message.content.strip()
+
+            with urllib.request.urlopen(req, timeout=120) as response:
+                result = json.loads(response.read().decode())
+                return result.get("response", "").strip()
+        except urllib.error.URLError:
+            console.print(
+                "[red]❌ Cannot connect to Ollama. Make sure it's running: ollama serve[/red]"
+            )
+            return ""
         except Exception as e:
-            console.print(f"[dim red]LLM call failed: {e}[/dim red]")
+            console.print(f"[dim red]Ollama error: {e}[/dim red]")
             return ""
 
     def generate_persona(self, user_description: str) -> dict[str, str]:
-        """Generate comprehensive persona using multiple targeted questions"""
+        """Generate persona using multiple Ollama queries"""
 
         console.print()
-        console.print("[dim]Generating your personalized AI assistant...[/dim]")
+        console.print("[dim]Generating your personalized AI assistant with Ollama...[/dim]")
         console.print()
 
         context = f'Creating an AI coding assistant persona based on: "{user_description}"'
 
-        # Phase 1: Core Identity Questions (like TinySkills' multi-source approach)
+        # Phase 1: Core Identity
         questions_phase1 = [
             (
                 "identity",
@@ -344,7 +345,10 @@ Focus on practical behaviors, not generic advice."""
         console.print("[dim cyan]Phase 1/3: Understanding your identity...[/dim cyan]")
         for key, question in questions_phase1:
             self.responses[key] = self._ask_question(question, context)
-            console.print(f"  [dim green]✓[/dim green] [dim]{key} captured[/dim]")
+            if self.responses[key]:
+                console.print(f"  [dim green]✓[/dim green] [dim]{key} captured[/dim]")
+            else:
+                console.print(f"  [dim red]✗[/dim red] [dim]{key} failed[/dim]")
 
         # Phase 2: Standards & Expectations
         questions_phase2 = [
@@ -362,9 +366,12 @@ Focus on practical behaviors, not generic advice."""
         console.print("[dim cyan]Phase 2/3: Defining standards...[/dim cyan]")
         for key, question in questions_phase2:
             self.responses[key] = self._ask_question(question, context)
-            console.print(f"  [dim green]✓[/dim green] [dim]{key} captured[/dim]")
+            if self.responses[key]:
+                console.print(f"  [dim green]✓[/dim green] [dim]{key} captured[/dim]")
+            else:
+                console.print(f"  [dim red]✗[/dim red] [dim]{key} failed[/dim]")
 
-        # Phase 3: Principles & Reminders
+        # Phase 3: Principles
         questions_phase3 = [
             (
                 "reminders",
@@ -376,19 +383,34 @@ Focus on practical behaviors, not generic advice."""
         console.print("[dim cyan]Phase 3/3: Synthesizing principles...[/dim cyan]")
         for key, question in questions_phase3:
             self.responses[key] = self._ask_question(question, context)
-            console.print(f"  [dim green]✓[/dim green] [dim]{key} captured[/dim]")
-
-        # Synthesize final persona
-        console.print()
-        console.print("[dim cyan]Synthesizing complete persona...[/dim cyan]")
+            if self.responses[key]:
+                console.print(f"  [dim green]✓[/dim green] [dim]{key} captured[/dim]")
+            else:
+                console.print(f"  [dim red]✗[/dim red] [dim]{key} failed[/dim]")
 
         return {
-            "who_i_am": self.responses.get("identity", ""),
-            "how_i_work": self.responses.get("approach", ""),
-            "how_i_communicate": self.responses.get("style", ""),
-            "my_standards": self.responses.get("standards", ""),
-            "what_i_expect": self.responses.get("expectations", ""),
-            "my_reminders": self.responses.get("reminders", ""),
+            "who_i_am": self.responses.get(
+                "identity", "I am your AI coding assistant, ready to help you write better code."
+            ),
+            "how_i_work": self.responses.get(
+                "approach",
+                "I work carefully and methodically, breaking down problems into manageable steps.",
+            ),
+            "how_i_communicate": self.responses.get(
+                "style",
+                "I communicate clearly and concisely, explaining my reasoning when helpful.",
+            ),
+            "my_standards": self.responses.get(
+                "standards", "I value working, readable code that follows best practices."
+            ),
+            "what_i_expect": self.responses.get(
+                "expectations",
+                "I expect you to share your goals and ask questions when something is unclear.",
+            ),
+            "my_reminders": self.responses.get(
+                "reminders",
+                "Simple solutions are better than clever ones. Working code today beats perfect code never.",
+            ),
         }
 
 
@@ -429,20 +451,13 @@ def determine_recommended_agents(user_description: str) -> list[str]:
     return list(recommended)
 
 
-def generate_skill_with_tinyskills(
-    user_description: str, model: str, api_key: str | None
-) -> Result[Skill, str]:
-    """Generate skill using TinySkills multi-question technique"""
+def generate_skill_with_ollama(user_description: str, model: str) -> Result[Skill, str]:
+    """Generate skill using Ollama LLM"""
 
     try:
-        generator = TinySkillsGenerator(model, api_key)
+        generator = OllamaSkillGenerator(model)
         persona_data = generator.generate_persona(user_description)
 
-        # Check if we got meaningful responses
-        if not any(persona_data.values()):
-            return Failure("LLM generation produced empty results")
-
-        # Generate skill name from description
         skill_name = user_description[:50]
         if len(user_description) > 50:
             skill_name += "..."
@@ -461,12 +476,8 @@ def generate_skill_with_tinyskills(
 
         return Success(skill)
 
-    except ImportError as e:
-        return Failure(f"Missing dependency: {e}")
-    except ValueError as e:
-        return Failure(f"Configuration error: {e}")
     except Exception as e:
-        return Failure(f"Generation failed: {e}")
+        return Failure(f"Ollama generation failed: {e}")
 
 
 def save_skills(skill: Skill) -> Result[Path, str]:
@@ -493,7 +504,7 @@ def save_skills(skill: Skill) -> Result[Path, str]:
 
 
 def generate_config(skill: Skill, model: str) -> dict:
-    """Generate synlogos.json config"""
+    """Generate Ollama-only synlogos.json config"""
     agent_config = {}
 
     for agent_name in skill.recommended_agents:
@@ -506,40 +517,28 @@ def generate_config(skill: Skill, model: str) -> dict:
 
     if "memory" not in agent_config:
         agent_config["memory"] = {
-            "model": "togetherai/moonshotai/Kimi-K2.5",
+            "model": "ollama/qwen3:8b",
             "instructions": AGENT_TYPES["memory"]["instructions"],
         }
 
+    # Ollama-only config - no cloud providers
     return {
         "$schema": "https://opencode.ai/config.json",
         "theme": "matrix",
         "instructions": ["skills.md"],
         "provider": {
-            "opencode": {
-                "npm": "@ai-sdk/openai-compatible",
-                "options": {
-                    "baseURL": "https://opencode.ai/zen/v1",
-                    "apiKey": "",
-                },
-                "models": {
-                    "glm-5-free": {"model": "glm-5-free"},
-                    "glm-5": {"model": "glm-5"},
-                    "kimi-k2-free": {"model": "kimi-k2-free"},
-                },
-            },
             "ollama": {
                 "npm": "@ai-sdk/openai-compatible",
-                "options": {"baseURL": "http://ollama:11434/v1"},
-                "models": {"qwen3:8b": {"model": "qwen3:8b"}},
-            },
-            "togetherai": {
-                "npm": "@ai-sdk/openai-compatible",
-                "options": {
-                    "baseURL": "https://api.together.xyz/v1",
-                    "apiKey": "",
+                "options": {"baseURL": "http://localhost:11434/v1"},
+                "models": {
+                    "qwen3:8b": {"model": "qwen3:8b"},
+                    "qwen3:14b": {"model": "qwen3:14b"},
+                    "qwen3:32b": {"model": "qwen3:32b"},
+                    "llama3.1:8b": {"model": "llama3.1:8b"},
+                    "deepseek-coder:6.7b": {"model": "deepseek-coder:6.7b"},
+                    "deepseek-coder:33b": {"model": "deepseek-coder:33b"},
                 },
-                "models": {"moonshotai/Kimi-K2.5": {}},
-            },
+            }
         },
         "model": model,
         "agent": agent_config,
@@ -560,15 +559,30 @@ def save_config(config: dict) -> Result[Path, str]:
 
 
 def run_onboarding() -> Result[tuple[Skill, dict], str]:
-    """Run onboarding to create personalized AI assistant"""
+    """Run Ollama-only onboarding"""
     console.print()
     console.print(
         Panel.fit(
-            "[bold green]Welcome to Synlogos![/bold green]\n"
-            "Let's create your personalized AI coding assistant.",
+            "[bold green]Welcome to Synlogos (Ollama Edition)![/bold green]\n"
+            "Let's create your personalized AI coding assistant using local models.",
             border_style="green",
         )
     )
+    console.print()
+
+    # Check if Ollama is running
+    if not check_ollama_running():
+        console.print("[red]❌ Ollama is not running![/red]")
+        console.print()
+        console.print("[dim]To set up Synlogos, you need Ollama installed and running:[/dim]")
+        console.print("  1. Install Ollama: [green]https://ollama.com[/green]")
+        console.print("  2. Start Ollama: [green]ollama serve[/green]")
+        console.print("  3. Pull a model: [green]ollama pull qwen3:8b[/green]")
+        console.print()
+        console.print("[yellow]Please start Ollama and try again.[/yellow]")
+        return Failure("Ollama not running")
+
+    console.print("[green]✓ Ollama is running[/green]")
     console.print()
 
     console.print("[cyan]What would you like your AI assistant to be?[/cyan]")
@@ -585,22 +599,54 @@ def run_onboarding() -> Result[tuple[Skill, dict], str]:
         console.print("[yellow]Using default: helpful AI coding assistant[/yellow]")
         user_description = "A helpful AI coding assistant"
 
-    # Select model
-    selected_model = select_model()
-    api_key = get_api_key_for_model(selected_model)
+    # Select Ollama model
+    selected_model = select_ollama_model()
 
-    if not api_key and selected_model.startswith(("togetherai", "opencode")):
-        console.print()
-        console.print(
-            f"[yellow]Warning: No API key found for {selected_model.split('/')[0]}.[/yellow]"
-        )
-        console.print(
-            f"[dim]Set {selected_model.split('/')[0].upper()}_API_KEY for best results.[/dim]"
-        )
-        console.print()
+    # Check if model exists
+    model_name = selected_model.replace("ollama/", "")
+    console.print()
+    console.print(f"[dim]Checking if model '{model_name}' is available...[/dim]")
 
-    # Generate skill using TinySkills
-    result = generate_skill_with_tinyskills(user_description, selected_model, api_key)
+    import urllib.request
+    import urllib.error
+
+    try:
+        # Try to get model info
+        req = urllib.request.Request(
+            f"http://localhost:11434/api/show",
+            data=json.dumps({"name": model_name}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+
+        try:
+            with urllib.request.urlopen(req, timeout=10) as response:
+                console.print(f"[green]✓ Model '{model_name}' is available[/green]")
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                console.print(
+                    f"[yellow]⚠️  Model '{model_name}' not found. Pulling it now...[/yellow]"
+                )
+                console.print(f"[dim]This may take a few minutes...[/dim]")
+
+                # Try to pull the model
+                pull_req = urllib.request.Request(
+                    "http://localhost:11434/api/pull",
+                    data=json.dumps({"name": model_name, "stream": False}).encode(),
+                    headers={"Content-Type": "application/json"},
+                )
+
+                try:
+                    with urllib.request.urlopen(pull_req, timeout=300) as response:
+                        console.print(f"[green]✓ Model '{model_name}' pulled successfully[/green]")
+                except Exception as pull_e:
+                    console.print(f"[red]❌ Failed to pull model: {pull_e}[/red]")
+                    console.print(f"[dim]Try manually: ollama pull {model_name}[/dim]")
+                    return Failure(f"Failed to pull model {model_name}")
+    except Exception as e:
+        console.print(f"[yellow]⚠️  Could not check model: {e}[/yellow]")
+
+    # Generate skill using Ollama
+    result = generate_skill_with_ollama(user_description, selected_model)
 
     if isinstance(result, Failure):
         return Failure(result.failure())
@@ -637,6 +683,9 @@ def run_onboarding() -> Result[tuple[Skill, dict], str]:
         if isinstance(save_result, Success) and isinstance(config_result, Success):
             console.print(f"[green]✓ Skill saved to {save_result.unwrap()}[/green]")
             console.print(f"[green]✓ Config saved to {config_result.unwrap()}[/green]")
+            console.print()
+            console.print("[dim]Your AI assistant is ready![/dim]")
+            console.print("[dim]Run 'synlogos' to start using it.[/dim]")
             return Success((skill, config))
         else:
             errors = []

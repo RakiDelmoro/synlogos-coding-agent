@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Synlogos CLI - Multi-provider, multi-agent AI coding assistant"""
+"""Synlogos CLI - Local AI coding assistant powered by Ollama"""
 
 import argparse
 import asyncio
+import json
 import os
 import sys
 import time
@@ -46,7 +47,7 @@ BANNER = """
 ███████║   ██║   ██║ ╚████║███████╗╚██████╔╝╚██████╔╝╚██████╔╝███████║
 ╚══════╝   ╚═╝   ╚═╝  ╚═══╝╚══════╝ ╚═════╝  ╚═════╝  ╚═════╝╚══════╝
 """
-TAGLINE = "[dim italic]In the beginning was the Code, and the Code was with the AI, and the Code was AI.[/]"
+TAGLINE = "[dim italic]Local AI coding assistant powered by Ollama - Your code, your models, your privacy.[/]"
 
 
 def show_startup(cwd: str, provider: str, model: str, agent_type: str | None = None):
@@ -64,17 +65,16 @@ def show_startup(cwd: str, provider: str, model: str, agent_type: str | None = N
     console.print(
         Panel(
             f"[bold cyan]Working Directory:[/] {cwd}\n"
-            f"[bold cyan]Provider:[/] {provider}\n"
             f"[bold cyan]Model:[/] {model}\n"
             f"{agent_info}"
-            f"[bold cyan]Mode:[/] Programmatic Tool Calling\n\n"
-            f"[bold]Architecture:[/]\n"
-            f"  [green]•[/] LLM writes Python code via `orchestrate` tool\n"
-            f"  [green]•[/] All operations execute programmatically\n"
-            f"  [green]•[/] Reduced context pollution & token usage\n"
-            f"  [green]•[/] Parallel execution via asyncio.gather()\n\n"
+            f"[bold cyan]Mode:[/] Local Ollama Mode\n\n"
+            f"[bold]Features:[/]\n"
+            f"  [green]•[/] 100% local - no data leaves your machine\n"
+            f"  [green]•[/] Privacy-focused - your code stays private\n"
+            f"  [green]•[/] No API keys or cloud dependencies\n"
+            f"  [green]•[/] Personalized AI assistant with custom skills\n\n"
             f"[dim]Type 'exit' or 'quit' to end session.[/]",
-            title="[bold green]Synlogos AI Coding Agent[/bold green]",
+            title="[bold green]Synlogos (Ollama Edition)[/bold green]",
             border_style="green",
             padding=(1, 2),
         )
@@ -185,7 +185,7 @@ async def process_slash_command(cmd: str, args: list[str], agent) -> tuple[bool,
         return True, False
 
     elif cmd == "/providers":
-        show_providers()
+        show_ollama_status()
         return True, False
 
     elif cmd == "/agents" or cmd == "/agent" and not args:
@@ -251,35 +251,58 @@ def show_agent_types():
     console.print()
 
 
-def show_providers():
-    """Display available providers"""
-    config_result = get_cached_config()
-    if isinstance(config_result, Failure):
-        console.print(f"[red]Error loading config: {config_result.failure()}[/]")
-        return
+def show_ollama_status():
+    """Check if Ollama is running and show available models"""
+    import urllib.request
 
-    config = config_result.unwrap()
     console.print()
-    console.print("[bold]Configured Providers:[/]")
+    console.print(Panel("[bold]Ollama Status[/]", border_style="blue"))
     console.print()
 
-    for name, provider in config.providers.items():
-        model_count = len(provider.models)
-        console.print(f"  [green]•[/] [bold]{name}[/] - {model_count} model(s)")
-        console.print(f"    [dim]Base URL: {provider.base_url}[/]")
-        for model_name in provider.models:
-            console.print(f"      - {model_name}")
+    try:
+        # Check if Ollama is running
+        req = urllib.request.Request("http://localhost:11434/api/tags")
+        with urllib.request.urlopen(req, timeout=5) as response:
+            data = json.loads(response.read().decode())
+            models = data.get("models", [])
 
-    console.print(f"\n[dim]Default model: {config.default_model}[/]")
+            console.print("[green]✓ Ollama is running[/green]")
+            console.print(f"[dim]Found {len(models)} model(s)[/dim]")
+            console.print()
+
+            if models:
+                console.print("[bold]Available Models:[/]")
+                for model in models:
+                    name = model.get("name", "Unknown")
+                    size = model.get("size", 0)
+                    # Convert bytes to GB
+                    size_gb = size / (1024**3)
+                    console.print(f"  [green]•[/] {name} ([dim]{size_gb:.1f} GB[/dim])")
+            else:
+                console.print("[yellow]No models found. Pull some with:[/yellow]")
+                console.print("  ollama pull qwen3:8b")
+                console.print("  ollama pull deepseek-coder:33b")
+    except Exception as e:
+        console.print("[red]✗ Ollama is not running[/red]")
+        console.print(f"[dim]Error: {e}[/dim]")
+        console.print()
+        console.print("[dim]To start Ollama:[/dim]")
+        console.print("  ollama serve")
+
     console.print()
 
 
 def parse_args():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(
-        description="Synlogos - Multi-provider AI coding agent with personalized skills",
+        description="Synlogos - Local AI coding assistant powered by Ollama",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
+Prerequisites:
+  - Ollama installed: https://ollama.com
+  - Ollama running: ollama serve
+  - Models pulled: ollama pull qwen3:8b
+
 Setup (required before first use):
   synlogos --setup                 # Create your personalized AI assistant
 
@@ -289,7 +312,6 @@ Examples:
   synlogos --agent explore          # Use the explore agent
   synlogos --agent architect        # Use the architect agent
   synlogos --list-agents           # Show available agents
-  synlogos --list-providers        # Show configured providers
   synlogos --skill                 # Show current skill configuration
   synlogos --reskill               # Regenerate your skill/persona
         """,
@@ -304,7 +326,7 @@ Examples:
     )
 
     parser.add_argument(
-        "--list-providers", action="store_true", help="List configured providers and exit"
+        "--check-ollama", action="store_true", help="Check if Ollama is running and exit"
     )
 
     parser.add_argument("--config", type=str, help="Path to synlogos.json config file")
@@ -334,8 +356,8 @@ async def run_async():
         show_agent_types()
         return 0
 
-    if args.list_providers:
-        show_providers()
+    if args.check_ollama:
+        show_ollama_status()
         return 0
 
     if args.skill:
