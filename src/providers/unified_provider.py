@@ -126,6 +126,21 @@ def build_messages(
     ]
 
 
+def build_tool_definitions(tools: tuple[Any, ...]) -> list[dict[str, Any]]:
+    """Build tool definitions for API"""
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": t.name,
+                "description": t.description,
+                "parameters": t.parameters_schema,
+            },
+        }
+        for t in tools
+    ]
+
+
 async def execute_tool(
     state: UnifiedProviderState, tool_name: str, arguments: dict
 ) -> Result[ToolResult, str]:
