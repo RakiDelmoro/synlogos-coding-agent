@@ -368,6 +368,23 @@ async def run_async():
             console.print(f"\n[red]Setup failed: {result.failure()}[/red]")
             return 1
 
+    # Check Ollama is running first
+    if not check_ollama():
+        console.print()
+        console.print(
+            Panel(
+                "[red]❌ Ollama is not running[/red]\n\n"
+                "Please start Ollama first:\n"
+                "  [cyan]ollama serve[/cyan]\n\n"
+                "Or if Ollama is in a Docker container:\n"
+                "  [cyan]export OLLAMA_HOST=ollama:11434[/cyan]",
+                title="Ollama Required",
+                border_style="red",
+            )
+        )
+        console.print()
+        return 1
+
     # Check if model is configured - if not, force setup
     from src.skills import config_exists, get_config_path
 
@@ -392,26 +409,6 @@ async def run_async():
 
         console.print("\n[green]✓ Setup complete! Starting Synlogos...[/green]")
         console.print()
-    else:
-        # Check if config has a model set
-        try:
-            with open(config_path, "r") as f:
-                cfg = json.load(f)
-            if cfg.get("model") == "ollama/qwen3:8b" and not args.agent:
-                # Default config, ask user to confirm
-                console.print()
-                console.print(
-                    Panel(
-                        "[yellow]Using default model: qwen3:8b[/yellow]\n\n"
-                        "Want to use a different model? Run:\n"
-                        "  [cyan]synlogos --setup[/cyan]",
-                        border_style="yellow",
-                    )
-                )
-                console.print()
-        except Exception:
-            # Config exists but can't read it, continue anyway
-            pass
 
     # Load configuration
     config_result = get_cached_config()
