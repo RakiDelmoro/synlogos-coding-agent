@@ -1,6 +1,7 @@
 """Minimal skill management for Synlogos - Zero config, just works"""
 
 import json
+import os
 from pathlib import Path
 from returns.result import Result, Success, Failure
 from rich.console import Console
@@ -8,6 +9,10 @@ from rich.panel import Panel
 
 
 console = Console()
+
+# Get Ollama host from environment or use default
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "localhost:11434")
+OLLAMA_BASE_URL = f"http://{OLLAMA_HOST}/v1"
 
 # Simple default skill - no generation needed
 DEFAULT_SKILL = """# AI Coding Assistant
@@ -33,7 +38,7 @@ Tell me what you want to achieve. I'll help you get there.
 - Ask if something is unclear
 """
 
-# Minimal Ollama-only config
+# Minimal Ollama-only config - uses OLLAMA_HOST from environment
 DEFAULT_CONFIG = {
     "$schema": "https://opencode.ai/config.json",
     "theme": "matrix",
@@ -41,7 +46,7 @@ DEFAULT_CONFIG = {
     "provider": {
         "ollama": {
             "npm": "@ai-sdk/openai-compatible",
-            "options": {"baseURL": "http://localhost:11434/v1"},
+            "options": {"baseURL": OLLAMA_BASE_URL},
             "models": {
                 "qwen3:8b": {"model": "qwen3:8b"},
                 "qwen3:14b": {"model": "qwen3:14b"},
@@ -100,7 +105,7 @@ def check_ollama() -> bool:
     import urllib.request
 
     try:
-        urllib.request.urlopen("http://localhost:11434", timeout=2)
+        urllib.request.urlopen(f"http://{OLLAMA_HOST}", timeout=2)
         return True
     except:
         return False
@@ -111,7 +116,7 @@ def get_available_models() -> list[str]:
     import urllib.request
 
     try:
-        req = urllib.request.Request("http://localhost:11434/api/tags")
+        req = urllib.request.Request(f"http://{OLLAMA_HOST}/api/tags")
         with urllib.request.urlopen(req, timeout=5) as response:
             data = json.loads(response.read().decode())
             return [m.get("name", "") for m in data.get("models", [])]

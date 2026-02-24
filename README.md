@@ -26,6 +26,44 @@ synlogos
 
 That's it. No setup, no config files, no API keys.
 
+## 🐳 Docker Support
+
+Running Ollama in a separate Docker container? No problem!
+
+```bash
+# Set the Ollama host (e.g., if Ollama is in another container named 'ollama')
+export OLLAMA_HOST=ollama:11434
+
+# Or use IP address
+export OLLAMA_HOST=192.168.1.100:11434
+
+# Then run synlogos
+synlogos
+```
+
+The `OLLAMA_HOST` environment variable tells Synlogos where to find your Ollama instance. Default is `localhost:11434`.
+
+**Example with Docker Compose:**
+
+```yaml
+version: '3.8'
+services:
+  ollama:
+    image: ollama/ollama
+    volumes:
+      - ollama:/root/.ollama
+    
+  synlogos:
+    build: .
+    environment:
+      - OLLAMA_HOST=ollama:11434
+    volumes:
+      - .:/workspace
+    working_dir: /workspace
+    depends_on:
+      - ollama
+```
+
 ## 🎯 What is Synlogos?
 
 A coding assistant that:
@@ -36,6 +74,7 @@ A coding assistant that:
 - ✅ Runs tests and fixes bugs
 - ✅ Searches and explores files
 - ✅ Works offline
+- ✅ Supports remote Ollama instances
 
 ## 🚀 Usage
 
@@ -79,7 +118,7 @@ Your AI can:
 
 ## 🧩 How It Works
 
-1. **Auto-detect** — Finds Ollama running on localhost:11434
+1. **Auto-detect** — Finds Ollama at `OLLAMA_HOST` (default: localhost:11434)
 2. **Auto-config** — Creates optimal settings for your model
 3. **Smart routing** — Simple tasks use direct tools, complex tasks get full code generation
 4. **Auto-compact** — Summarizes long conversations automatically
@@ -107,12 +146,12 @@ ollama pull deepseek-coder:6.7b
 - **No data sharing** — Your code never leaves your machine
 - **No tracking** — Zero telemetry or analytics
 - **No accounts** — No signup, no API keys
+- **Flexible hosting** — Run Ollama locally or on another machine/container
 
 ## 🎮 Example Session
 
 ```bash
 $ synlogos
-
 ✓ Connected to Ollama (qwen3:8b)
 
 You: Create a Fibonacci function
@@ -133,6 +172,12 @@ You: /exit
 **Ollama not running?**
 ```bash
 ollama serve
+```
+
+**Ollama in Docker/container?**
+```bash
+export OLLAMA_HOST=your-ollama-host:11434
+synlogos
 ```
 
 **Model not found?**

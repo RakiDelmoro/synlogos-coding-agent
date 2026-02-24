@@ -49,6 +49,10 @@ TAGLINE = "[dim italic]Local AI coding assistant powered by Ollama - Your code, 
 
 def show_startup(cwd: str, provider: str, model: str, agent_type: str | None = None):
     """Display startup banner with current configuration"""
+    import os
+
+    ollama_host = os.environ.get("OLLAMA_HOST", "localhost:11434")
+
     console.print()
     console.print(f"[bold green]{BANNER}[/bold green]")
     console.print(TAGLINE, justify="center")
@@ -63,6 +67,7 @@ def show_startup(cwd: str, provider: str, model: str, agent_type: str | None = N
         Panel(
             f"[bold cyan]Working Directory:[/] {cwd}\n"
             f"[bold cyan]Model:[/] {model}\n"
+            f"[bold cyan]Ollama Host:[/] {ollama_host}\n"
             f"{agent_info}"
             f"[bold cyan]Mode:[/] Local Ollama Mode\n\n"
             f"[bold]Features:[/]\n"
@@ -251,14 +256,20 @@ def show_agent_types():
 def show_ollama_status():
     """Check if Ollama is running and show available models"""
     import urllib.request
+    import os
+
+    # Get Ollama host from environment or default
+    ollama_host = os.environ.get("OLLAMA_HOST", "localhost:11434")
 
     console.print()
-    console.print(Panel("[bold]Ollama Status[/]", border_style="blue"))
+    console.print(
+        Panel(f"[bold]Ollama Status[/]\n[dim]Host: {ollama_host}[/]", border_style="blue")
+    )
     console.print()
 
     try:
         # Check if Ollama is running
-        req = urllib.request.Request("http://localhost:11434/api/tags")
+        req = urllib.request.Request(f"http://{ollama_host}/api/tags")
         with urllib.request.urlopen(req, timeout=5) as response:
             data = json.loads(response.read().decode())
             models = data.get("models", [])
